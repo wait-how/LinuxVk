@@ -45,6 +45,9 @@ top: debug
 clean:
 	@rm -f $(TARGETS) $(OBJFILES) gmon.out
 
+spv:
+	@make -C shader
+
 # for each object file: that matches %.o: replace with %.cpp and use stb_image.h
 $(OBJFILES): %.o: %.cpp %.h stb_image.h
 	$(CC) -c -o $@ $< $(CFLAGS)

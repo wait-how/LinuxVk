@@ -8,4 +8,6 @@ For Manjaro:
 
 I found the only thing I needed to add to my standard makefile was `pkg-config --cflags vulkan` and `pkg-config --libs vulkan`.
 
+While writing things, I noticed that if you use optimus manager and try and run things on the intel GPU while in NVIDIA mode, the app crashes.  This is known behavior and is documented [here](https://github.com/Askannz/optimus-manager/wiki/FAQ,-common-issues,-troubleshooting).
+
 Obviously haven't integrated shaders into my makefile, but we'll cross that bridge when we get to it.

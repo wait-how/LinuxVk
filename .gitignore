@@ -1,0 +1,6 @@
+debug
+profile
+small
+slow
+*.o
+*.spv
