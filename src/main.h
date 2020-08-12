@@ -14,6 +14,7 @@
 #include <string>
 #include <optional> // C++17, for device queue querying
 #include <set>
+#include <array> // for returning arrays of things
 
 #include <cstring> // for strcmp
 #include <cstdint> // for UINT32_MAX
