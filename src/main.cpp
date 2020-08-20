@@ -116,9 +116,13 @@ private:
 	void populateDebugMessenger(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
 		createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		
-		createInfo.messageSeverity = //VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+		createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
 									 VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+		
+		if (verbose) {
+			createInfo.messageSeverity |= VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+		}
+
 		createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
 								 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 								 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
@@ -275,10 +279,6 @@ private:
 			}
 			if (queues[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
 				qa.transfer = i;
-			}
-			
-			if (verbose) {
-				cout << "Queue family " << i << " has " << (qa.graphics.has_value() ? "graphics " : "") << (qa.compute.has_value() ? "compute " : "") << (qa.transfer.has_value() ? "transfer " : "") << endl;
 			}
 		}
 		
@@ -748,6 +748,13 @@ private:
 		{ {0.0, -1.0, 0.0}, {1.0, 0.0, 0.0, 1.0} },
 		{ {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0, 1.0} },
 		{ {-1.0, 1.0, 0.0}, {0.0, 0.0, 1.0, 1.0} },
+		{ {-1.0, -1.0, 0.0}, {0.0, 0.0, 1.0, 1.0} },
+		{ {1.0, -1.0, 0.0}, {0.0, 1.0, 0.0, 1.0} },
+		{ {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0, 1.0} },
+	};
+
+	const std::vector<uint16_t> indices {
+		0, 1, 2, 3, 4, 5
 	};
 	
 	// find a memory type that our buffer can use and that has the properties we want
@@ -793,22 +800,97 @@ private:
 		vkBindBufferMemory(dev, buf, bufMem, 0);
 	}
 
+	void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) {
+		VkCommandBufferAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocInfo.commandPool = cp;
+		allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocInfo.commandBufferCount = 1;
+
+		VkCommandBuffer buf;
+
+		vkAllocateCommandBuffers(dev, &allocInfo, &buf);
+
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		vkBeginCommandBuffer(buf, &beginInfo);
+
+		VkBufferCopy copy{};
+		copy.size = size;
+
+		vkCmdCopyBuffer(buf, src, dst, 1, &copy);
+
+		vkEndCommandBuffer(buf);
+
+		VkSubmitInfo subInfo{};
+		subInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+		subInfo.commandBufferCount = 1;
+		subInfo.pCommandBuffers = &buf;
+
+		vkQueueSubmit(gQueue, 1, &subInfo, VK_NULL_HANDLE);
+		vkQueueWaitIdle(gQueue);
+
+		vkFreeCommandBuffers(dev, cp, 1, &buf);
+	}
+
+	VkBuffer stagingBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+
 	VkBuffer vertexBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory vertexMem = VK_NULL_HANDLE;
+	VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
 
 	void createVertexBuffer() {
 		
 		size_t bufferSize = verts.size() * sizeof(vertex);
 		createBuffer(verts.size() * sizeof(vertex), 
-			VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-			vertexBuffer, vertexMem);
+			stagingBuffer, stagingMemory);
+		
+		createBuffer(verts.size() * sizeof(vertex), 
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
+			vertexBuffer, vertexMemory);
 
 		void *data;
 		VkMemoryMapFlags temp{};
-		vkMapMemory(dev, vertexMem, 0, bufferSize, temp, &data);
+		vkMapMemory(dev, stagingMemory, 0, bufferSize, temp, &data);
 		memcpy(data, verts.data(), bufferSize);
-		vkUnmapMemory(dev, vertexMem);
+		vkUnmapMemory(dev, stagingMemory);
+
+		copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+
+		vkFreeMemory(dev, stagingMemory, nullptr);
+		vkDestroyBuffer(dev, stagingBuffer, nullptr);
+	}
+
+	VkBuffer indexBuffer = VK_NULL_HANDLE;
+	VkDeviceMemory indexMemory = VK_NULL_HANDLE;
+
+	void createIndexBuffer() {
+		size_t bufferSize = indices.size() * sizeof(uint16_t);
+
+		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		stagingBuffer, stagingMemory);
+
+		createBuffer(bufferSize,
+		VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		indexBuffer, indexMemory);
+
+		void *data;
+		VkMemoryMapFlags temp{};
+		vkMapMemory(dev, stagingMemory, 0, bufferSize, temp, &data);
+		memcpy(data, indices.data(), bufferSize);
+		vkUnmapMemory(dev, stagingMemory);
+
+		copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+
+		vkFreeMemory(dev, stagingMemory, nullptr);
+		vkDestroyBuffer(dev, stagingBuffer, nullptr);
 	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -855,7 +937,9 @@ private:
 			VkDeviceSize offsets[] = { 0 };
 
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, buffers, offsets);
-			vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(verts.size()), 1, 0, 0);
+			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			//vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(verts.size()), 1, 0, 0);
+			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(commandBuffers[i]);
 			
 			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
@@ -931,6 +1015,7 @@ private:
 		createFramebuffers();
 		createCommandPool();
 		createVertexBuffer();
+		createIndexBuffer();
 		allocCommandBuffers();
 		createSyncs();
 	}
@@ -1042,8 +1127,11 @@ private:
 		cleanupSwapChain();
 
 		vkDestroyCommandPool(dev, cp, nullptr);
-		
-		vkFreeMemory(dev, vertexMem, nullptr);
+
+		vkFreeMemory(dev, indexMemory, nullptr);
+		vkDestroyBuffer(dev, indexBuffer, nullptr);
+
+		vkFreeMemory(dev, vertexMemory, nullptr);
 		vkDestroyBuffer(dev, vertexBuffer, nullptr);
 
 		vkDestroyDevice(dev, nullptr);
