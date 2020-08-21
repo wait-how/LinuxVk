@@ -3,7 +3,7 @@
 #include <iostream>
 #include <vector>
 
-#include <glm/glm.hpp>
+#include "glm_wrapper.h"
 
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
