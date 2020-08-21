@@ -17,7 +17,7 @@ TARGETS := slow debug release small profile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
 # specify a list of object files we want
-OBJFILES := main.o
+OBJFILES := main.o camera.o
 
 # all and clean aren't actually creating files, so they are declared as phony targets
 .PHONY: top clean

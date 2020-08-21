@@ -16,6 +16,7 @@ public:
 	}
 
 private:
+
 	const bool verbose = false;
 	const bool verify = true;
 	
@@ -575,6 +576,99 @@ private:
 			return arr;
 		}
 	};
+
+	struct ubo {
+		glm::mat4 model;
+		glm::mat4 view;
+		glm::mat4 proj;
+	};
+
+	std::vector<VkBuffer> uniformBuffers;
+	std::vector<VkDeviceMemory> uniformMemories;
+
+	void createUniformBuffers() {
+		VkDeviceSize bufferSize = sizeof(ubo);
+		uniformBuffers.resize(swapImages.size());
+		uniformMemories.resize(swapImages.size());
+
+		for (size_t i = 0; i < swapImages.size(); i++) {
+			createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			uniformBuffers[i], uniformMemories[i]);
+		}
+	}
+
+	VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
+
+	void createDescriptorSetLayout() {
+		VkDescriptorSetLayoutBinding layoutBinding{};
+		layoutBinding.binding = 0;
+		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layoutBinding.descriptorCount = 1;
+		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		VkDescriptorSetLayoutCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		createInfo.bindingCount = 1;
+		createInfo.pBindings = &layoutBinding;
+
+		if (vkCreateDescriptorSetLayout(dev, &createInfo, nullptr, &dSetLayout) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create descriptor set!");
+		}
+	}
+
+	VkDescriptorPool dPool = VK_NULL_HANDLE;
+
+	void createDescriptorPool() {
+		VkDescriptorPoolSize poolSize{};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize.descriptorCount = swapImages.size();
+
+		VkDescriptorPoolCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		createInfo.maxSets = swapImages.size();
+		createInfo.poolSizeCount = 1;
+		createInfo.pPoolSizes = &poolSize;
+
+		if (vkCreateDescriptorPool(dev, &createInfo, nullptr, &dPool) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create descriptor pool!");
+		}
+	}
+
+	std::vector<VkDescriptorSet> dSet;
+
+	void allocDescriptorSets() {
+		std::vector<VkDescriptorSetLayout> dLayout(swapImages.size(), dSetLayout);
+
+		VkDescriptorSetAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocInfo.descriptorPool = dPool;
+		allocInfo.descriptorSetCount = swapImages.size();
+		allocInfo.pSetLayouts = dLayout.data();
+		
+		dSet.resize(swapImages.size());
+		if (vkAllocateDescriptorSets(dev, &allocInfo, dSet.data()) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create descriptor set!");
+		}
+
+		for (size_t i = 0; i < swapImages.size(); i++) {
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = uniformBuffers[i];
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(ubo);
+
+			VkWriteDescriptorSet writeSet{};
+			writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writeSet.dstSet = dSet[i];
+			writeSet.dstBinding = 0;
+			writeSet.dstArrayElement = 0;
+			writeSet.descriptorCount = 1;
+			writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			writeSet.pBufferInfo = &bufferInfo;
+
+			vkUpdateDescriptorSets(dev, 1, &writeSet, 0, nullptr);
+		}
+	}
 	
 	VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
 	VkPipeline gpipe = VK_NULL_HANDLE;
@@ -676,6 +770,8 @@ private:
 		
 		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // uniform creation struct
 		pipeLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+		pipeLayoutCreateInfo.setLayoutCount = 1;
+		pipeLayoutCreateInfo.pSetLayouts = &dSetLayout;
 
 		if (vkCreatePipelineLayout(dev, &pipeLayoutCreateInfo, nullptr, &pipeLayout) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create pipeline layout!");
@@ -843,7 +939,7 @@ private:
 
 	void createVertexBuffer() {
 		
-		size_t bufferSize = verts.size() * sizeof(vertex);
+		VkDeviceSize bufferSize = verts.size() * sizeof(vertex);
 		createBuffer(verts.size() * sizeof(vertex), 
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
@@ -855,8 +951,7 @@ private:
 			vertexBuffer, vertexMemory);
 
 		void *data;
-		VkMemoryMapFlags temp{};
-		vkMapMemory(dev, stagingMemory, 0, bufferSize, temp, &data);
+		vkMapMemory(dev, stagingMemory, 0, bufferSize, 0, &data);
 		memcpy(data, verts.data(), bufferSize);
 		vkUnmapMemory(dev, stagingMemory);
 
@@ -870,7 +965,7 @@ private:
 	VkDeviceMemory indexMemory = VK_NULL_HANDLE;
 
 	void createIndexBuffer() {
-		size_t bufferSize = indices.size() * sizeof(uint16_t);
+		VkDeviceSize bufferSize = indices.size() * sizeof(uint16_t);
 
 		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -882,8 +977,7 @@ private:
 		indexBuffer, indexMemory);
 
 		void *data;
-		VkMemoryMapFlags temp{};
-		vkMapMemory(dev, stagingMemory, 0, bufferSize, temp, &data);
+		vkMapMemory(dev, stagingMemory, 0, bufferSize, 0, &data);
 		memcpy(data, indices.data(), bufferSize);
 		vkUnmapMemory(dev, stagingMemory);
 
@@ -938,6 +1032,7 @@ private:
 
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, buffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &dSet[i], 0, nullptr);
 			//vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(verts.size()), 1, 0, 0);
 			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
 			vkCmdEndRenderPass(commandBuffers[i]);
@@ -995,6 +1090,9 @@ private:
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
+		createUniformBuffers();
+		createDescriptorPool();
+		allocDescriptorSets();
 		allocCommandBuffers();
 		createSyncs();
 	}
@@ -1011,13 +1109,35 @@ private:
 		createSwapChain();
 		createImageViews();
 		createRenderPass();
+		createDescriptorSetLayout();
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
 		createVertexBuffer();
 		createIndexBuffer();
+		createUniformBuffers();
+		createDescriptorPool();
+		allocDescriptorSets();
 		allocCommandBuffers();
 		createSyncs();
+	}
+
+	void updateUniformBuffer(uint32_t imageIndex) {
+		using namespace std::chrono;
+		static auto start = high_resolution_clock::now();
+		auto current = high_resolution_clock::now();
+		float time = duration<float, seconds::period>(current - start).count();
+
+		ubo u1;
+		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		u1.view = glm::lookAt(glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 10.0f);
+		u1.proj[1][1] *= -1; // flip direction of y-axis for vulkan ndc system
+
+		void* data;
+		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
+		memcpy(data, &u1, sizeof(ubo));
+		vkUnmapMemory(dev, uniformMemories[imageIndex]);
 	}
 	
 	size_t currFrame = 0;
@@ -1039,6 +1159,8 @@ private:
 		}
 
 		imagesInFlight[index] = inFlightFences[currFrame]; // this frame is using the fence at currFrame
+
+		updateUniformBuffer(index);
 
 		VkSubmitInfo si{};
 		si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1107,6 +1229,13 @@ private:
 
 		vkFreeCommandBuffers(dev, cp, commandBuffers.size(), commandBuffers.data());
 
+		for (size_t i = 0; i < swapImages.size(); i++) {
+			vkFreeMemory(dev, uniformMemories[i], nullptr);
+			vkDestroyBuffer(dev, uniformBuffers[i], nullptr);
+		}
+
+		vkDestroyDescriptorPool(dev, dPool, nullptr);
+
 		for (auto framebuffer : swapFramebuffers) {
 			vkDestroyFramebuffer(dev, framebuffer, nullptr);
 		}
@@ -1125,6 +1254,8 @@ private:
 	void cleanup() {
 
 		cleanupSwapChain();
+
+		vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
 
 		vkDestroyCommandPool(dev, cp, nullptr);
 
