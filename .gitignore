@@ -3,4 +3,4 @@ profile
 small
 slow
 *.o
-*.spv
+shader/*.spv
