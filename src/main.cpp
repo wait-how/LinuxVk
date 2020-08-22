@@ -1,7 +1,7 @@
 #include "main.h"
 
-constexpr unsigned int screenWidth = 1920;
-constexpr unsigned int screenHeight = 1080;
+constexpr unsigned int screenWidth = 3840;
+constexpr unsigned int screenHeight = 2160;
 
 using std::cout;
 using std::cerr;
@@ -768,7 +768,7 @@ private:
 		dynCreateInfo.dynamicStateCount = 2;
 		dynCreateInfo.pDynamicStates = dynamStates;
 		
-		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // uniform creation struct
+		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // for descriptor sets
 		pipeLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipeLayoutCreateInfo.setLayoutCount = 1;
 		pipeLayoutCreateInfo.pSetLayouts = &dSetLayout;
@@ -1097,6 +1097,8 @@ private:
 		createSyncs();
 	}
 
+	cam::camera c;
+
 	void init() {
 		createWindow();
 		createInstance();
@@ -1130,8 +1132,8 @@ private:
 
 		ubo u1;
 		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-		u1.view = glm::lookAt(glm::vec3(0.0f, 0.0f, -7.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 10.0f);
+		u1.view = glm::lookAt(c.pos, c.front, glm::vec3(0.0f, 1.0f, 0.0f));
+		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 		u1.proj[1][1] *= -1; // flip direction of y-axis for vulkan ndc system
 
 		void* data;
@@ -1210,6 +1212,7 @@ private:
 	void loop() {
 		while (!glfwWindowShouldClose(w)) {
 			glfwPollEvents();
+			c.update(w);
 			drawFrame();
 			
 			if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) {

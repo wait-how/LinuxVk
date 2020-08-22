@@ -10,7 +10,7 @@
 #include <assimp/postprocess.h>
 
 namespace vload {
-	struct pt {
+	struct vertex {
 		glm::vec3 pos;
 		glm::vec3 normal;
 		glm::vec3 tangent;
@@ -19,11 +19,11 @@ namespace vload {
 
 	class mesh {
 	public:
-		std::vector<pt> pList; // position coords
-		std::vector<unsigned int> elemList; // elements to dictate what to render
+		std::vector<vertex> verts;
+		std::vector<unsigned int> indices; // elements to dictate what to render
 
-		mesh(std::vector<pt> inPList, std::vector<unsigned int> inElemList) : pList(inPList), elemList(inElemList) { }
-		mesh() : pList(), elemList() { }
+		mesh(std::vector<vertex> inPList, std::vector<unsigned int> inElemList) : verts(inPList), indices(inElemList) { }
+		mesh() : verts(), indices() { }
 	};
 
 	class vloader {

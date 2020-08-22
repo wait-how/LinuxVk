@@ -31,8 +31,8 @@ namespace vload {
 	}
 
 	mesh vloader::processMesh(aiMesh* inMesh, const aiScene* scene) {
-		vector<pt> vList;
-		vector<unsigned int> elemList;
+		vector<vertex> vList;
+		vector<unsigned int> indices;
 		
 		for (unsigned int i = 0; i < inMesh->mNumVertices; i++) { // extract position information
 			glm::vec3 position;
@@ -46,14 +46,14 @@ namespace vload {
 			normal.y = inMesh->mNormals[i].y;
 			normal.z = inMesh->mNormals[i].z;
 
-			pt temppoint = { position, normal };
+			vertex temppoint = { position, normal };
 			vList.push_back(temppoint);
 		}
 
 		for (unsigned int i = 0; i < inMesh->mNumFaces; i++) { // extract element information
 			aiFace f = inMesh->mFaces[i];
 			for (unsigned int j = 0; j < f.mNumIndices; j++) {
-				elemList.push_back(f.mIndices[j]);
+				indices.push_back(f.mIndices[j]);
 			}
 		}
 
@@ -82,6 +82,6 @@ namespace vload {
 			}
 		}
 		
-		return mesh(vList, elemList);
+		return mesh(vList, indices);
 	}
 }
