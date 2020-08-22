@@ -11,18 +11,19 @@
 
 namespace vload {
 	struct vertex {
-		glm::vec3 pos;
-		glm::vec3 normal;
-		glm::vec3 tangent;
-		glm::vec2 texcoord;
+		// aligning things is a little less space-efficient, but makes offsets easier.
+		alignas(4) glm::vec3 pos;
+		alignas(4) glm::vec3 normal;
+		alignas(4) glm::vec3 tangent;
+		alignas(4) glm::vec2 texcoord;
 	};
 
 	class mesh {
 	public:
 		std::vector<vertex> verts;
-		std::vector<unsigned int> indices; // elements to dictate what to render
+		std::vector<uint32_t> indices; // elements to dictate what to render
 
-		mesh(std::vector<vertex> inPList, std::vector<unsigned int> inElemList) : verts(inPList), indices(inElemList) { }
+		mesh(std::vector<vertex> inPList, std::vector<uint32_t> inElemList) : verts(inPList), indices(inElemList) { }
 		mesh() : verts(), indices() { }
 	};
 
@@ -31,7 +32,7 @@ namespace vload {
 		vloader(std::string path);
 		std::vector<mesh> meshList;
 	private:
-		bool processNode(aiNode* node, const aiScene* scene);
+		void processNode(aiNode* node, const aiScene* scene);
 		mesh processMesh(aiMesh* inMesh, const aiScene* scene);
 	};
 }

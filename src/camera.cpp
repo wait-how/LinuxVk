@@ -62,7 +62,7 @@ namespace cam {
 
 		front = glm::normalize(dir);
 		
-		glm::vec3 updir = glm::vec3(0.0f, 1.0f, 0.0f);
+		glm::vec3 updir = glm::vec3(0.0f, 1.0f * swapCoords, 0.0f);
 		glm::vec3 rdir = glm::cross(updir, front);
 
 		// move camera according to user input

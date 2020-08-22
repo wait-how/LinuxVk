@@ -541,46 +541,10 @@ private:
 		return mod;
 	}
 
-	struct vertex {
-		glm::vec3 pos;
-		glm::vec4 color;
-
-		static VkVertexInputBindingDescription getBindingDescription() {
-			VkVertexInputBindingDescription bindDesc{};
-			bindDesc.binding = 0;
-			bindDesc.stride = sizeof(vertex);
-			bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-			
-			return bindDesc;
-		}
-
-		static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescription() {
-			
-			std::array<VkVertexInputAttributeDescription, 2> arr;
-
-			VkVertexInputAttributeDescription posDesc{};
-			posDesc.location = 0;
-			posDesc.binding = 0;
-			posDesc.format = VK_FORMAT_R32G32B32_SFLOAT;
-			posDesc.offset = offsetof(vertex, pos);
-
-			VkVertexInputAttributeDescription colorDesc{};
-			colorDesc.location = 1;
-			colorDesc.binding = 0;
-			colorDesc.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-			colorDesc.offset = offsetof(vertex, color);
-			
-			arr[0] = posDesc;
-			arr[1] = colorDesc;
-
-			return arr;
-		}
-	};
-
 	struct ubo {
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 proj;
+		alignas(16) glm::mat4 model;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
 	};
 
 	std::vector<VkBuffer> uniformBuffers;
@@ -694,15 +658,29 @@ private:
 
 		VkPipelineShaderStageCreateInfo shaders[] = {vCreateInfo, fCreateInfo}; // create all shaders in one go
 		
-		auto bindDesc = vertex::getBindingDescription();
-		auto attrsDesc = vertex::getAttributeDescription();
+		VkVertexInputBindingDescription bindDesc;
+		bindDesc.binding = 0;
+		bindDesc.stride = sizeof(vload::vertex);
+		bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		VkVertexInputAttributeDescription attrDesc[4];
+		for (size_t i = 0; i < 4; i++) {
+			attrDesc[i].binding = 0;
+			attrDesc[i].location = i;
+			attrDesc[i].offset = 4 * i; // all offsets are rounded up to 4 bytes due to alignas
+		}
+
+		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attrDesc[3].format = VK_FORMAT_R32G32_SFLOAT;
 		
 		VkPipelineVertexInputStateCreateInfo vinCreateInfo{};
 		vinCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 		vinCreateInfo.vertexBindingDescriptionCount = 1;
 		vinCreateInfo.pVertexBindingDescriptions = &bindDesc;
-		vinCreateInfo.vertexAttributeDescriptionCount = attrsDesc.size();
-		vinCreateInfo.pVertexAttributeDescriptions = attrsDesc.data();
+		vinCreateInfo.vertexAttributeDescriptionCount = 4;
+		vinCreateInfo.pVertexAttributeDescriptions = attrDesc;
 
 		VkPipelineInputAssemblyStateCreateInfo inAsmCreateInfo{};
 		inAsmCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -839,19 +817,6 @@ private:
 			throw std::runtime_error("cannot create command pool!");
 		}
 	}
-
-	const std::vector<vertex> verts {
-		{ {0.0, -1.0, 0.0}, {1.0, 0.0, 0.0, 1.0} },
-		{ {1.0, 1.0, 0.0}, {0.0, 1.0, 0.0, 1.0} },
-		{ {-1.0, 1.0, 0.0}, {0.0, 0.0, 1.0, 1.0} },
-		{ {-1.0, -1.0, 0.0}, {0.0, 0.0, 1.0, 1.0} },
-		{ {1.0, -1.0, 0.0}, {0.0, 1.0, 0.0, 1.0} },
-		{ {0.0, 1.0, 0.0}, {1.0, 0.0, 0.0, 1.0} },
-	};
-
-	const std::vector<uint16_t> indices {
-		0, 1, 2, 3, 4, 5
-	};
 	
 	// find a memory type that our buffer can use and that has the properties we want
 	uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -937,15 +902,15 @@ private:
 	VkBuffer vertexBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
 
-	void createVertexBuffer() {
-		
-		VkDeviceSize bufferSize = verts.size() * sizeof(vertex);
-		createBuffer(verts.size() * sizeof(vertex), 
+	void createVertexBuffer(const std::vector<vload::vertex>& verts) {
+
+		VkDeviceSize bufferSize = verts.size() * sizeof(vload::vertex);
+		createBuffer(verts.size() * sizeof(vload::vertex), 
 			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
 			stagingBuffer, stagingMemory);
 		
-		createBuffer(verts.size() * sizeof(vertex), 
+		createBuffer(verts.size() * sizeof(vload::vertex), 
 			VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
 			vertexBuffer, vertexMemory);
@@ -964,8 +929,8 @@ private:
 	VkBuffer indexBuffer = VK_NULL_HANDLE;
 	VkDeviceMemory indexMemory = VK_NULL_HANDLE;
 
-	void createIndexBuffer() {
-		VkDeviceSize bufferSize = indices.size() * sizeof(uint16_t);
+	void createIndexBuffer(const std::vector<uint32_t>& indices) {
+		VkDeviceSize bufferSize = indices.size() * sizeof(uint32_t);
 
 		createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -990,7 +955,7 @@ private:
 	std::vector<VkCommandBuffer> commandBuffers;
 	
 	// need to create a command buffer per swapchain image
-	void allocCommandBuffers() {
+	void allocCommandBuffers(uint32_t numIndices) {
 		commandBuffers.resize(swapFramebuffers.size());
 		
 		VkCommandBufferAllocateInfo allocInfo{};
@@ -1031,10 +996,10 @@ private:
 			VkDeviceSize offsets[] = { 0 };
 
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, buffers, offsets);
-			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &dSet[i], 0, nullptr);
 			//vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(verts.size()), 1, 0, 0);
-			vkCmdDrawIndexed(commandBuffers[i], indices.size(), 1, 0, 0, 0);
+			vkCmdDrawIndexed(commandBuffers[i], numIndices, 1, 0, 0, 0);
 			vkCmdEndRenderPass(commandBuffers[i]);
 			
 			if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
@@ -1073,6 +1038,8 @@ private:
 		}
 	}
 
+	uint32_t numIndices = 0;
+
 	void recreateSwapChain() {
 		int width, height;
 		glfwGetFramebufferSize(w, &width, &height);
@@ -1093,7 +1060,7 @@ private:
 		createUniformBuffers();
 		createDescriptorPool();
 		allocDescriptorSets();
-		allocCommandBuffers();
+		allocCommandBuffers(numIndices);
 		createSyncs();
 	}
 
@@ -1115,12 +1082,14 @@ private:
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
-		createVertexBuffer();
-		createIndexBuffer();
+		vload::vloader v("models/donut.obj");
+		createVertexBuffer(v.meshList[0].verts);
+		createIndexBuffer(v.meshList[0].indices);
+		numIndices = v.meshList[0].indices.size();
 		createUniformBuffers();
 		createDescriptorPool();
 		allocDescriptorSets();
-		allocCommandBuffers();
+		allocCommandBuffers(numIndices);
 		createSyncs();
 	}
 
@@ -1131,7 +1100,7 @@ private:
 		float time = duration<float, seconds::period>(current - start).count();
 
 		ubo u1;
-		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.view = glm::lookAt(c.pos, c.front, glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 		u1.proj[1][1] *= -1; // flip direction of y-axis for vulkan ndc system

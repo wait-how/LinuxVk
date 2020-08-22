@@ -17,7 +17,7 @@ TARGETS := slow debug release small profile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
 # specify a list of object files we want
-OBJFILES := main.o camera.o
+OBJFILES := main.o camera.o vloader.o
 
 # all and clean aren't actually creating files, so they are declared as phony targets
 .PHONY: top clean runprofile
@@ -44,7 +44,7 @@ top: debug
 
 # clean out .o and executable files
 clean:
-	@rm -f $(TARGETS) $(OBJFILES) default.prof*
+	@rm -f $(TARGETS) $(OBJFILES) shader/*.spv default.prof*
 
 spv:
 	@make -C shader

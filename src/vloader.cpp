@@ -6,7 +6,11 @@ namespace vload {
 	vloader::vloader(std::string path) : meshList() {
 		Assimp::Importer imp;
 		// make everything triangles, generate normals if they aren't there, calcuate tangents, and join identical vertices together.
-		const aiScene* scene = imp.ReadFile(path, aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_GenNormals | aiProcess_JoinIdenticalVertices);
+		const aiScene* scene = imp.ReadFile(path, aiProcess_Triangulate 
+												| aiProcess_CalcTangentSpace
+												| aiProcess_GenNormals
+												| aiProcess_JoinIdenticalVertices
+												);
 
 		if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) { // check if import failed and exit
 			cerr << "Assimp scene import failed: " << imp.GetErrorString() << endl;
@@ -17,24 +21,22 @@ namespace vload {
 	}
 
 	// recursively visit nodes
-	bool vloader::processNode(aiNode* node, const aiScene* scene) {
-		for (unsigned int i = 0; i < node->mNumMeshes; i++) {
-			aiMesh* meshtemp = scene->mMeshes[node->mMeshes[i]];
-			meshList.push_back(processMesh(meshtemp, scene));
+	void vloader::processNode(aiNode* node, const aiScene* scene) {
+		for (size_t i = 0; i < node->mNumMeshes; i++) {
+			aiMesh* temp = scene->mMeshes[node->mMeshes[i]];
+			meshList.push_back(processMesh(temp, scene));
 		}
 
-		for (unsigned int i = 0; i < node->mNumChildren; i++) {
+		for (size_t i = 0; i < node->mNumChildren; i++) {
 			processNode(node->mChildren[i], scene); // process children
 		}
-
-		return true;
 	}
 
 	mesh vloader::processMesh(aiMesh* inMesh, const aiScene* scene) {
 		vector<vertex> vList;
-		vector<unsigned int> indices;
+		vector<uint32_t> indices;
 		
-		for (unsigned int i = 0; i < inMesh->mNumVertices; i++) { // extract position information
+		for (size_t i = 0; i < inMesh->mNumVertices; i++) { // extract position information
 			glm::vec3 position;
 			glm::vec3 normal;
 
@@ -50,9 +52,9 @@ namespace vload {
 			vList.push_back(temppoint);
 		}
 
-		for (unsigned int i = 0; i < inMesh->mNumFaces; i++) { // extract element information
+		for (size_t i = 0; i < inMesh->mNumFaces; i++) { // extract element information
 			aiFace f = inMesh->mFaces[i];
-			for (unsigned int j = 0; j < f.mNumIndices; j++) {
+			for (size_t j = 0; j < f.mNumIndices; j++) {
 				indices.push_back(f.mIndices[j]);
 			}
 		}
@@ -61,7 +63,7 @@ namespace vload {
 			cout << "Mesh has no texture coordinates." << endl;
 		}
 		else {
-			for (unsigned int i = 0; i < inMesh->mNumVertices; i++) {
+			for (size_t i = 0; i < inMesh->mNumVertices; i++) {
 				glm::vec2 coord;
 				coord.s = inMesh->mTextureCoords[0][i].x;
 				coord.t = inMesh->mTextureCoords[0][i].y;
@@ -73,7 +75,7 @@ namespace vload {
 		if (!inMesh->HasTangentsAndBitangents()) { // extract tangent vector information, if possible
 			cout << "Mesh has no tangents." << endl;
 		} else {
-			for (unsigned int i = 0; i < inMesh->mNumVertices; i++) {
+			for (size_t i = 0; i < inMesh->mNumVertices; i++) {
 				glm::vec3 tan;	
 				tan.x = inMesh->mTangents[i].x;
 				tan.y = inMesh->mTangents[i].y;
