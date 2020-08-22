@@ -4,13 +4,9 @@
 #include "glfw_wrapper.h"
 
 namespace cam {
-	class test {
-	public:
-		test(glm::vec3 nv) : v(nv) {}
-		float print() { return v.x; }
-	private:
-		glm::vec3 v;
-	};
+	constexpr bool keyboardLook = true;
+	constexpr bool mouseLook = false;
+	constexpr bool vulkanCoords = true;
 
 	class camera {
 	public:
@@ -22,6 +18,8 @@ namespace cam {
 		
 		//camera(glm::vec3 inPos) : pos(inPos), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0) { }
 		camera(glm::vec3 inPos);
+		camera();
+
 		void update(GLFWwindow*);
 	private:
 		int skip;

@@ -2,14 +2,13 @@
 
 #include <cmath> // cmath is weird here and doesn't have M_PI, avoid it by defining pi ourselves
 
-#define KEYBOARD_LOOK
-
 namespace cam {
 
 	double mscale = 0.05; // movement speed
 	double lscale = 0.05; // look speed
 
 	camera::camera(glm::vec3 inPos) : pos(inPos), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0) { }
+	camera::camera() : pos(glm::vec3(0.0f, 0.0f, -3.0f)), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0) { }
 
 	void camera::update(GLFWwindow *window) {
 
@@ -30,25 +29,29 @@ namespace cam {
 		prevX = x;
 		prevY = y;
 
-		hangle += (float)(xoff * lscale);
-		vangle += (float)(yoff * lscale);
+		float swapCoords = (vulkanCoords) ? -1.0f : 1.0f;
+
+		if (mouseLook) {
+			hangle += (float)(xoff * lscale) * swapCoords;
+			vangle += (float)(yoff * lscale) * swapCoords;
+		}
 
 		// if using a laptop, sometimes the mouse can be annoying. keyboard versions of the same thing are set here.
 		// (mouse still works while using the keyboard!)
-	#ifdef KEYBOARD_LOOK
-		if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-			hangle -= 20 * lscale;
+		if (keyboardLook) {
+			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
+				hangle -= 20.0f * lscale * swapCoords;
+			}
+			if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
+				hangle += 20.0f * lscale * swapCoords;
+			}
+			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
+				vangle += 20.0f * lscale * swapCoords;
+			}
+			if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
+				vangle -= 20.0f * lscale * swapCoords;
+			}
 		}
-		if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-			hangle += 20 * lscale;
-		}
-		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-			vangle += 20 * lscale;
-		}
-		if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-			vangle -= 20 * lscale;
-		}
-	#endif
 		
 		// sine and cosine functions affect more than one axis
 
