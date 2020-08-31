@@ -16,4 +16,3 @@
 #include "glm_wrapper.h"
 #include "camera.h"
 #include "vloader.h"
-

@@ -1,5 +1,12 @@
 #include "main.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+// take out decoders we don't use to save space
+#define STBI_ONLY_JPEG
+#define STBI_ONLY_PNG
+#define STBI_NO_FAILURE_STRINGS
+#include "stb_image.h"
+
 constexpr unsigned int screenWidth = 3840;
 constexpr unsigned int screenHeight = 2160;
 
@@ -64,7 +71,7 @@ private:
 					throw std::runtime_error("can't find all validation layers!");
 				}
 			}
-			cout << "found all validation layers." << endl;
+			cout << "found all validation layers" << endl;
 		}
 	}
 
@@ -202,10 +209,10 @@ private:
 		}
 		
 		if (goodEnough) {
-			cout << "Vulkan Version: " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
-			cout << "Hardware: " << dprop.deviceName << endl;
-			cout << "Max Texture Memory: " << dprop.limits.maxImageDimension2D << " bytes" << endl;
-			cout << "GS and TS present: " << ((goodEnough) ? "yes" : "no") << endl << endl;
+			cout << "vulkan version: " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
+			cout << "gpu: " << dprop.deviceName << endl;
+			cout << "max texture memory: " << dprop.limits.maxImageDimension2D << " bytes" << endl;
+			cout << "gs/ts present: " << ((goodEnough) ? "yes" : "no") << endl << endl;
 		}
 
 		return goodEnough;
@@ -951,6 +958,78 @@ private:
 		vkFreeMemory(dev, stagingMemory, nullptr);
 		vkDestroyBuffer(dev, stagingBuffer, nullptr);
 	}
+
+	void createImage(unsigned int width, unsigned int height, VkFormat format, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props, VkImage& image, VkDeviceMemory& imageMemory) {
+		VkImageCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		createInfo.imageType = VK_IMAGE_TYPE_2D;
+		createInfo.format = format;
+		createInfo.extent = {width, height, 1};
+		createInfo.mipLevels = 1;
+		createInfo.arrayLayers = 1;
+		createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		createInfo.tiling = tiling;
+		createInfo.usage = usage;
+		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // discard texels when loading
+		if (vkCreateImage(dev, &createInfo, nullptr, &image) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create texture image!");
+		}
+
+		VkMemoryRequirements memReq;
+		vkGetImageMemoryRequirements(dev, image, &memReq);
+
+		VkMemoryAllocateInfo allocInfo{};
+		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+		allocInfo.allocationSize = memReq.size;
+		allocInfo.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, props);
+
+		if (vkAllocateMemory(dev, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+			throw std::runtime_error("cannot allocate texture memory!");
+		}
+
+		vkBindImageMemory(dev, image, imageMemory, 0);
+	}
+
+	VkImage texImage = VK_NULL_HANDLE;
+	VkDeviceMemory texMem = VK_NULL_HANDLE;
+
+	void createTextureImage() {
+		int width, height, chans;
+		const std::string path = "textures/grass/grass02 diffuse 1k.jpg";
+		unsigned char *data = stbi_load(path.data(), &width, &height, &chans, STBI_rgb_alpha);
+		if (!data) {
+			throw std::runtime_error("cannot load texture!");
+		} else {
+			std::cout << "loaded texture " << path << std::endl;
+		}
+		
+		VkDeviceSize imageSize = width * height * 4;
+
+		VkBuffer sbuf = VK_NULL_HANDLE;
+		VkDeviceMemory smem = VK_NULL_HANDLE;
+
+		createBuffer(imageSize, 
+			VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			sbuf, smem);
+
+		void *map_data;
+		vkMapMemory(dev, smem, 0, imageSize, 0, &map_data);
+		memcpy(map_data, data, imageSize);
+		vkUnmapMemory(dev, smem);
+
+		stbi_image_free(data);
+
+		createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			texImage, texMem);
+		
+		vkFreeMemory(dev, smem, nullptr);
+		vkDestroyBuffer(dev, sbuf, nullptr);
+	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	
@@ -1084,6 +1163,7 @@ private:
 		createCommandPool();
 		vload::vloader v("models/donut.obj");
 		createVertexBuffer(v.meshList[0].verts);
+		createTextureImage();
 		createIndexBuffer(v.meshList[0].indices);
 		numIndices = v.meshList[0].indices.size();
 		createUniformBuffers();
@@ -1230,6 +1310,9 @@ private:
 		vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
 
 		vkDestroyCommandPool(dev, cp, nullptr);
+
+		vkFreeMemory(dev, texMem, nullptr);
+		vkDestroyImage(dev, texImage, nullptr);
 
 		vkFreeMemory(dev, indexMemory, nullptr);
 		vkDestroyBuffer(dev, indexBuffer, nullptr);

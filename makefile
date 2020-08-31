@@ -49,8 +49,8 @@ clean:
 spv:
 	@make -C shader
 
-# for each object file: that matches %.o: replace with %.cpp and use stb_image.h
-$(OBJFILES): %.o: %.cpp %.h stb_image.h
+# for each object file: that matches %.o: replace with %.cpp
+$(OBJFILES): %.o: %.cpp
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 # for each target: compile in all dependancies as well as all library link flags we need
