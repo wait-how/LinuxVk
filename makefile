@@ -1,35 +1,42 @@
 # you can use the GCC -H option to list all included directories, helps with build debugging
 # and make -d for makefile debugging
 
-VPATH := ./src
-CC := clang++
+# makefile rules are specified here: https://www.gnu.org/software/make/manual/html_node/Rule-Syntax.html
 
-# get compilation options from libraries used, assuming they're actually installed
+# use all cores if needed
+MAKEFLAGS += "-j $(shell nproc)" 
+
+CXX := clang++
+DB := lldb
+
+# tell make to turn src/*.cpp into *.cpp
+VPATH := src
+
 LIBS := $(shell pkg-config --libs glfw3 assimp glm vulkan)
 LIBFLAGS := $(shell pkg-config --cflags glfw3 assimp glm vulkan)
 
-DIRS := -Isrc
+SRCFILES := $(foreach dir, $(VPATH), $(wildcard $(dir)/*.cpp))
 CFLAGS := -Wall -std=c++17 $(DIRS) $(LIBFLAGS)
+
+# map .cpp files to objects files of the same name
+OBJFILES := $(SRCFILES:cpp=o)
 LDFLAGS := 
 
 # specify a single target name here
 TARGETS := slow debug release small profile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
-# specify a list of object files we want
-OBJFILES := main.o camera.o vloader.o
-
-# all and clean aren't actually creating files, so they are declared as phony targets
-.PHONY: top clean runprofile
+# phony targets don't create a file as output
+.PHONY: full clean runprofile
 
 # maximum information, for serious debugging
-slow: CFLAGS += -ggdb -O0
+slow: CFLAGS += -g$(DB) -O0
 
 # some optimization
-debug: CFLAGS += -ggdb -Og
+debug: CFLAGS += -g$(DB) -Og
 
 # fastest executable on my machine
-release: CFLAGS += -Ofast -march=native -ffast-math -flto=thin
+release: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin
 release: LDFLAGS += -flto=thin
 
 # smaller executable
@@ -40,23 +47,24 @@ profile: CFLAGS += -Ofast -march=native -fprofile-instr-generate -fcoverage-mapp
 profile: LDFLAGS += -fprofile-instr-generate
 
 # debug build by default
-top: debug
+full: debug spv
 
 # clean out .o and executable files
 clean:
 	@rm -f $(TARGETS) $(OBJFILES) shader/*.spv default.prof*
 
 spv:
-	@make -C shader
+	@make -s -C shader
 
 # for each object file: that matches %.o: replace with %.cpp
 $(OBJFILES): %.o: %.cpp
-	$(CC) -c -o $@ $< $(CFLAGS)
+	$(CXX) -c -o $@ $< $(CFLAGS)
 
 # for each target: compile in all dependancies as well as all library link flags we need
 $(TARGETS): % : $(OBJFILES)
-	$(CC) -o $@ $(LIBS) $^ $(LDFLAGS)
+	$(CXX) -o $@ $(LIBS) $^ $(LDFLAGS)
 
+# execute a profiling run and print out the results
 runprofile: profile
 	@echo NOTE: executable has to exit for results to be generated.
 	@./profile
