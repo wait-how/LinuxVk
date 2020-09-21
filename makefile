@@ -51,7 +51,7 @@ top: debug
 
 # clean out .o and executable files
 clean:
-	@rm -f $(TARGETS) $(OBJFILES) shader/*.spv default.prof*
+	@rm -f $(TARGETS) $(OBJFILES) default.prof*
 
 spv:
 	@make -C shader
