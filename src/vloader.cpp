@@ -1,3 +1,8 @@
+#include <iostream>
+
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+
 #include "vloader.h"
 using namespace std;
 

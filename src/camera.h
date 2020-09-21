@@ -1,6 +1,9 @@
 #pragma once
 
-#include "glm_wrapper.h"
+#include <cmath>
+
+#include <glm/vec3.hpp>
+
 #include "glfw_wrapper.h"
 
 namespace cam {
@@ -22,6 +25,8 @@ namespace cam {
 
 		void update(GLFWwindow*);
 	private:
+		float rads(float deg) { return deg * M_PI / 180.0; }
+
 		int skip;
 		double prevX, prevY;
 	};

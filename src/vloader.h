@@ -1,13 +1,10 @@
 #pragma once
 
-#include <iostream>
 #include <vector>
 
-#include "glm_wrapper.h"
-
-#include <assimp/Importer.hpp>
 #include <assimp/scene.h>
-#include <assimp/postprocess.h>
+
+#include "glm_wrapper.h"
 
 namespace vload {
 	struct vertex {

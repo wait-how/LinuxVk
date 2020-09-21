@@ -1,6 +1,7 @@
-#include "camera.h"
+#include <cmath>
+#include <glm/geometric.hpp>
 
-#include <cmath> // cmath is weird here and doesn't have M_PI, avoid it by defining pi ourselves
+#include "camera.h"
 
 namespace cam {
 
@@ -56,9 +57,9 @@ namespace cam {
 		// sine and cosine functions affect more than one axis
 
 		glm::vec3 dir;
-		dir.x = cosf(glm::radians(vangle)) * cosf(glm::radians(hangle));
-		dir.y = sinf(glm::radians(vangle));
-		dir.z = cosf(glm::radians(vangle)) * sinf(glm::radians(hangle));
+		dir.x = cosf(rads(vangle)) * cosf(rads(hangle));
+		dir.y = sinf(rads(vangle));
+		dir.z = cosf(rads(vangle)) * sinf(rads(hangle));
 
 		front = glm::normalize(dir);
 		

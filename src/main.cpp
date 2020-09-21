@@ -192,33 +192,37 @@ private:
 	}
 	
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
+
+	enum manufacturer { nvidia, intel, any };
 	
-	bool checkDevice(VkPhysicalDevice pd, bool perf) {
+	bool checkDevice(VkPhysicalDevice pd, manufacturer m) {
 		VkPhysicalDeviceProperties dprop{}; // basic information
 		VkPhysicalDeviceFeatures dfeat{}; // detailed feature list
 		
 		vkGetPhysicalDeviceProperties(pd, &dprop);
 		vkGetPhysicalDeviceFeatures(pd, &dfeat);
+
+		const std::string_view name = std::string_view(dprop.deviceName);
+		cout << "found " << name << " running vulkan version " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
 		
 		VkBool32 goodEnough;
-
-		if (perf) { // get NVIDIA
-			goodEnough = std::string(dprop.deviceName).find("GeForce") != std::string::npos;
-		} else { // if GS and TS exist, gpu is probably fine
-			goodEnough = dfeat.geometryShader && dfeat.tessellationShader;
-		}
-		
-		if (goodEnough) {
-			cout << "vulkan version: " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
-			cout << "gpu: " << dprop.deviceName << endl;
-			cout << "max texture memory: " << dprop.limits.maxImageDimension2D << " bytes" << endl;
-			cout << "gs/ts present: " << ((goodEnough) ? "yes" : "no") << endl << endl;
+		switch (m) {
+			case nvidia:
+				goodEnough = name.find("GeForce") != std::string_view::npos;
+				break;
+			case intel:
+				goodEnough = name.find("Intel") != std::string_view::npos;
+				break;
+			case any:
+				// if the gpu has a geometry and tessellation shader, it's good enough
+				goodEnough = dfeat.geometryShader && dfeat.tessellationShader;
+				break;
 		}
 
 		return goodEnough;
 	}
 
-	void pickPhysicalDevice(bool perf) {
+	void pickPhysicalDevice(manufacturer m) {
 		uint32_t numDevices;
 		vkEnumeratePhysicalDevices(instance, &numDevices, nullptr);
 		if (numDevices == 0) {
@@ -228,15 +232,17 @@ private:
 		vkEnumeratePhysicalDevices(instance, &numDevices, devices.data());
 		
 		for (const auto& device : devices) {
-			if (checkDevice(device, perf)) {
+			if (checkDevice(device, m) && pdev == VK_NULL_HANDLE) {
 				pdev = device;
-				break;
 			}
 		}
 
 		if (pdev == VK_NULL_HANDLE) {
 			throw std::runtime_error("no usable graphics device found!");
 		}
+
+		const std::string shortNames[3] = {"nvidia", "intel", "unknown"};
+		cout << "using " << shortNames[m] << " gpu" << endl;
 	}
 	
 	std::vector<const char*> requiredExtensions = {
@@ -868,7 +874,7 @@ private:
 		vkBindBufferMemory(dev, buf, bufMem, 0);
 	}
 
-	void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) {
+	VkCommandBuffer beginSingleCommand() {
 		VkCommandBufferAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 		allocInfo.commandPool = cp;
@@ -885,11 +891,10 @@ private:
 
 		vkBeginCommandBuffer(buf, &beginInfo);
 
-		VkBufferCopy copy{};
-		copy.size = size;
+		return buf;
+	}
 
-		vkCmdCopyBuffer(buf, src, dst, 1, &copy);
-
+	void endSingleCommand(VkCommandBuffer buf) {
 		vkEndCommandBuffer(buf);
 
 		VkSubmitInfo subInfo{};
@@ -901,6 +906,80 @@ private:
 		vkQueueWaitIdle(gQueue);
 
 		vkFreeCommandBuffers(dev, cp, 1, &buf);
+	}
+
+	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldl, VkImageLayout newl) {
+		VkCommandBuffer buf = beginSingleCommand();
+
+		VkImageSubresourceRange range{};
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		VkImageMemoryBarrier barrier{};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = oldl;
+		barrier.newLayout = newl;
+		barrier.image = image;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.subresourceRange = range;
+
+		VkPipelineStageFlags srcStage;
+		VkPipelineStageFlags dstStage;
+		
+		if (oldl == VK_IMAGE_LAYOUT_UNDEFINED && newl == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			dstStage = VK_PIPELINE_STAGE_TRANSFER_BIT; // pseudo-stage that includes vkCopy and vkClear commands, among others
+
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		} else if (oldl == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newl == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+			srcStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			dstStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		} else {
+			throw std::invalid_argument("illegal stage combination!");
+		}
+
+		vkCmdPipelineBarrier(buf, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+		endSingleCommand(buf);
+	}
+
+	void copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_t height) {
+		VkCommandBuffer cbuf = beginSingleCommand();
+
+		VkImageSubresourceLayers rec{};
+		rec.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		rec.mipLevel = 0;
+		rec.baseArrayLayer = 0;
+		rec.layerCount = 1;
+
+		VkBufferImageCopy copy{};
+		copy.bufferOffset = 0;
+		copy.imageSubresource = rec;
+		copy.imageOffset = {0, 0, 0};
+		copy.imageExtent = {width, height, 1};
+
+		vkCmdCopyBufferToImage(cbuf, buf, img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+
+		endSingleCommand(cbuf);
+	}
+
+	void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) {
+		VkCommandBuffer buf = beginSingleCommand();
+
+		VkBufferCopy copy{};
+		copy.size = size;
+
+		vkCmdCopyBuffer(buf, src, dst, 1, &copy);
+
+		endSingleCommand(buf);
 	}
 
 	VkBuffer stagingBuffer = VK_NULL_HANDLE;
@@ -971,7 +1050,8 @@ private:
 		createInfo.tiling = tiling;
 		createInfo.usage = usage;
 		createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // discard texels when loading
+		createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // discard existing texels when loading
+		// initiallayout can only be ..._UNDEFINED or ..._PREINITIALIZED
 		if (vkCreateImage(dev, &createInfo, nullptr, &image) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create texture image!");
 		}
@@ -994,14 +1074,13 @@ private:
 	VkImage texImage = VK_NULL_HANDLE;
 	VkDeviceMemory texMem = VK_NULL_HANDLE;
 
-	void createTextureImage() {
+	void createTextureImage(std::string path) {
 		int width, height, chans;
-		const std::string path = "textures/grass/grass02 diffuse 1k.jpg";
 		unsigned char *data = stbi_load(path.data(), &width, &height, &chans, STBI_rgb_alpha);
 		if (!data) {
 			throw std::runtime_error("cannot load texture!");
 		} else {
-			std::cout << "loaded texture " << path << std::endl;
+			cout << "loaded texture " << path << endl;
 		}
 		
 		VkDeviceSize imageSize = width * height * 4;
@@ -1027,6 +1106,10 @@ private:
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			texImage, texMem);
 		
+		transitionImageLayout(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		copyBufferToImage(sbuf, texImage, uint32_t(width), uint32_t(height));
+		transitionImageLayout(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
 		vkFreeMemory(dev, smem, nullptr);
 		vkDestroyBuffer(dev, sbuf, nullptr);
 	}
@@ -1152,7 +1235,7 @@ private:
 			setupDebugMessenger();
 		}
 		createSurface();
-		pickPhysicalDevice(true);
+		pickPhysicalDevice(intel);
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
@@ -1163,7 +1246,7 @@ private:
 		createCommandPool();
 		vload::vloader v("models/donut.obj");
 		createVertexBuffer(v.meshList[0].verts);
-		createTextureImage();
+		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
 		createIndexBuffer(v.meshList[0].indices);
 		numIndices = v.meshList[0].indices.size();
 		createUniformBuffers();
