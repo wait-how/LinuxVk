@@ -27,7 +27,7 @@ TARGETS := slow debug release small profile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
 # phony targets don't create a file as output
-.PHONY: full clean runprofile
+.PHONY: top clean runprofile
 
 # maximum information, for serious debugging
 slow: CFLAGS += -g$(DB) -O0
@@ -47,14 +47,14 @@ profile: CFLAGS += -Ofast -march=native -fprofile-instr-generate -fcoverage-mapp
 profile: LDFLAGS += -fprofile-instr-generate
 
 # debug build by default
-full: debug spv
+top: debug
 
 # clean out .o and executable files
 clean:
 	@rm -f $(TARGETS) $(OBJFILES) shader/*.spv default.prof*
 
 spv:
-	@make -s -C shader
+	@make -C shader
 
 # for each object file: that matches %.o: replace with %.cpp
 $(OBJFILES): %.o: %.cpp

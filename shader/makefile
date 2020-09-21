@@ -2,10 +2,11 @@ MAKEFLAGS += "-j $(shell nproc)"
 
 CC := glslangValidator
 
-GLSLSRC := shader.vert shader.frag
-
 # stages named <name>.vert, <vert>.frag, etc. get
 # converted to vert.spv, frag.spv, etc by glslang
+
+PIPELINE := shader
+GLSLSRC := $(wildcard shader*)
 SPV := vert.spv frag.spv
 
 .PHONY: clean
