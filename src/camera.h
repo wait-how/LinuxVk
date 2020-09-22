@@ -29,5 +29,7 @@ namespace cam {
 
 		int skip;
 		double prevX, prevY;
+		double prevTime;
+		double mscale, lscale; // movement and look speeds
 	};
 };

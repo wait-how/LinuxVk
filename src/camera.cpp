@@ -5,11 +5,13 @@
 
 namespace cam {
 
-	double mscale = 0.05; // movement speed
-	double lscale = 0.05; // look speed
+	camera::camera(glm::vec3 inPos) : pos(inPos), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0), mscale(1), lscale(1) {
+		prevTime = glfwGetTime();
+	}
 
-	camera::camera(glm::vec3 inPos) : pos(inPos), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0) { }
-	camera::camera() : pos(glm::vec3(0.0f, 0.0f, -3.0f)), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0) { }
+	camera::camera() : pos(glm::vec3(0.0f, 0.0f, -3.0f)), hangle(90.0f), vangle(0.0f), skip(0), prevX(0.0), prevY(0.0), mscale(1), lscale(1) {
+		prevTime = glfwGetTime();
+	}
 
 	void camera::update(GLFWwindow *window) {
 
@@ -21,6 +23,9 @@ namespace cam {
 			prevY = y;
 			skip++;
 		}
+
+		mscale = std::min(glfwGetTime() - prevTime, 0.05);
+		lscale = std::min(glfwGetTime() - prevTime, 0.05);
 
 		// target is 1 away from pos, always.  This makes math easier (hypotenuse = 1)
 

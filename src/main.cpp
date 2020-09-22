@@ -92,7 +92,7 @@ private:
 
 	VkInstance instance = VK_NULL_HANDLE;
 
-	static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
+	static VKAPI_ATTR VkBool32 debugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT mSev,
 		VkDebugUtilsMessageTypeFlagsEXT mType,
 		const VkDebugUtilsMessengerCallbackDataEXT* data,
@@ -102,7 +102,7 @@ private:
 		return VK_FALSE; // don't abort on error in callback
 	}
 	
-	// load extensions for creating and destroying debug messengers ourselves
+	// create extension methods for creating and destroying debug messengers ourselves since extensions aren't loaded by default
 	VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
 		auto f = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
 		if (f) {
@@ -168,6 +168,8 @@ private:
 			createInfo.ppEnabledLayerNames = validationLayers.data();
 			
 			populateDebugMessenger(debugCreateInfo);
+
+			// passing debugCreateInfo here so that our debug utils handle errors in createInstance or destroyInstance
 			createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
 		}
 		
@@ -249,7 +251,7 @@ private:
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME
 	};
 
-	// swapchain support is device-specific, so check for it here
+	// extension support is device-specific, so check for it here
 	void checkDeviceExtensions(VkPhysicalDevice pdev) {
 		uint32_t numExtensions;
 		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, nullptr);
@@ -1235,7 +1237,7 @@ private:
 			setupDebugMessenger();
 		}
 		createSurface();
-		pickPhysicalDevice(intel);
+		pickPhysicalDevice(nvidia);
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
