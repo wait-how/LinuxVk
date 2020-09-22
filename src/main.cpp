@@ -7,9 +7,6 @@
 #define STBI_NO_FAILURE_STRINGS
 #include "stb_image.h"
 
-constexpr unsigned int screenWidth = 3840;
-constexpr unsigned int screenHeight = 2160;
-
 using std::cout;
 using std::cerr;
 using std::endl;
@@ -23,6 +20,9 @@ public:
 	}
 
 private:
+
+	constexpr static unsigned int screenWidth = 3840;
+	constexpr static unsigned int screenHeight = 2160;
 
 	const bool verbose = false;
 	const bool verify = true;
@@ -1427,4 +1427,5 @@ int main(int argc, char **argv) {
 		cerr << "Exception thrown: " << e.what() << endl;
 		return 1;
 	}
+	return 0;
 }

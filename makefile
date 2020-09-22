@@ -23,7 +23,7 @@ OBJFILES := $(SRCFILES:cpp=o)
 LDFLAGS := 
 
 # specify a single target name here
-TARGETS := slow debug release small profile
+TARGETS := slow debug release small lineprofile profile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
 # phony targets don't create a file as output
@@ -42,16 +42,20 @@ release: LDFLAGS += -flto=thin
 # smaller executable
 small: CFLAGS += -Os -s
 
-# profiling run
-profile: CFLAGS += -Ofast -march=native -fprofile-instr-generate -fcoverage-mapping
-profile: LDFLAGS += -fprofile-instr-generate
+# line-based profiling run
+lineprofile: CFLAGS += -Og -fprofile-instr-generate -fcoverage-mapping
+lineprofile: LDFLAGS += -fprofile-instr-generate
+
+# time-based profiling run
+profile: CFLAGS += -pg
+profile: LDFLAGS += -pg
 
 # debug build by default
 top: debug
 
 # clean out .o and executable files
 clean:
-	@rm -f $(TARGETS) $(OBJFILES) default.prof*
+	@rm -f $(TARGETS) $(OBJFILES) default.prof* times.txt
 
 spv:
 	@make -C shader
@@ -65,12 +69,18 @@ $(TARGETS): % : $(OBJFILES)
 	$(CXX) -o $@ $(LIBS) $^ $(LDFLAGS)
 
 # execute a profiling run and print out the results
-runprofile: profile
+getlineprofile: lineprofile
+	@echo NOTE: executable has to exit for results to be generated.
+	@./lineprofile
+	@llvm-profdata merge -sparse default.profraw -o default.profdata
+	@llvm-cov show ./lineprofile -instr-profile=default.profdata -show-line-counts-or-regions > default.proftxt
+	@less default.proftxt
+
+getprofile: profile
 	@echo NOTE: executable has to exit for results to be generated.
 	@./profile
-	@llvm-profdata merge -sparse default.profraw -o default.profdata
-	@llvm-cov show ./profile -instr-profile=default.profdata -show-line-counts-or-regions > default.proftxt
-	@less default.proftxt
+	@gprof profile gmon.out -p > times.txt
+	@less times.txt
 
 # for each cpp file: update timestamp, but don't create a file if you can't find it.
 %.cpp:

@@ -96,8 +96,5 @@ namespace cam {
 			hangle = 90.0f;
 			vangle = 0.0f;
 		}
-		if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) {
-			mscale = 0.5;
-		}
 	}
 };

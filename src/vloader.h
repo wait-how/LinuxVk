@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <string>
 
 #include <assimp/scene.h>
 
@@ -12,15 +13,15 @@ namespace vload {
 		alignas(4) glm::vec3 pos;
 		alignas(4) glm::vec3 normal;
 		alignas(4) glm::vec3 tangent;
-		alignas(4) glm::vec2 texcoord;
+		alignas(4) glm::vec2 uv;
 	};
 
 	class mesh {
 	public:
 		std::vector<vertex> verts;
-		std::vector<uint32_t> indices; // elements to dictate what to render
+		std::vector<uint32_t> indices; // for index buffer
 
-		mesh(std::vector<vertex> inPList, std::vector<uint32_t> inElemList) : verts(inPList), indices(inElemList) { }
+		mesh(const std::vector<vertex>& inVertList, const std::vector<uint32_t>& inElemList) : verts(inVertList), indices(inElemList) { }
 		mesh() : verts(), indices() { }
 	};
 
