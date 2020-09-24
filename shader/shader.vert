@@ -20,5 +20,5 @@ layout (location = 0) out vec4 vColor;
 
 void main() {
 	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(pos, 1.0f);
-	vColor = vec4(normal, 1.0f);
+	vColor = vec4(normalize(normal), 1.0f);
 }

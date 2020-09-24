@@ -195,6 +195,28 @@ private:
 	
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
 
+	// want extended dynamic state to control wireframes
+	const std::vector<const char*> requiredExtensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	};
+
+	// extension support is device-specific, so check for it here
+	bool checkDeviceExtensions(VkPhysicalDevice pdev) {
+		uint32_t numExtensions;
+		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, nullptr);
+		std::vector<VkExtensionProperties> deviceExtensions(numExtensions);
+		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, deviceExtensions.data());
+		
+		std::set<std::string> tempExtensionList(requiredExtensions.begin(), requiredExtensions.end());
+		
+		// erase any extensions found
+		for (const auto& extension : deviceExtensions) {
+			tempExtensionList.erase(extension.extensionName);
+		}
+
+		return tempExtensionList.empty();
+	}
+
 	enum manufacturer { nvidia, intel, any };
 	
 	bool checkDevice(VkPhysicalDevice pd, manufacturer m) {
@@ -217,9 +239,12 @@ private:
 				break;
 			case any:
 				// if the gpu has a geometry and tessellation shader, it's good enough
-				goodEnough = dfeat.geometryShader && dfeat.tessellationShader;
-				break;
+				goodEnough = true;
 		}
+
+		goodEnough &= dfeat.geometryShader;
+		goodEnough &= dfeat.tessellationShader;
+		goodEnough &= checkDeviceExtensions(pd);
 
 		return goodEnough;
 	}
@@ -245,29 +270,6 @@ private:
 
 		const std::string shortNames[3] = {"nvidia", "intel", "unknown"};
 		cout << "using " << shortNames[m] << " gpu" << endl;
-	}
-	
-	std::vector<const char*> requiredExtensions = {
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME
-	};
-
-	// extension support is device-specific, so check for it here
-	void checkDeviceExtensions(VkPhysicalDevice pdev) {
-		uint32_t numExtensions;
-		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, nullptr);
-		std::vector<VkExtensionProperties> deviceExtensions(numExtensions);
-		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, deviceExtensions.data());
-		
-		std::set<std::string> tempExtensionList(requiredExtensions.begin(), requiredExtensions.end());
-		
-		// erase any extensions found
-		for (const auto& extension : deviceExtensions) {
-			tempExtensionList.erase(extension.extensionName);
-		}
-
-		if (!tempExtensionList.empty()) {
-			throw std::runtime_error("cannot find a device with all extensions!");
-		}
 	}
 
 	struct queueAvailable {
@@ -370,7 +372,6 @@ private:
 	
 	void createLogicalDevice() {
 		queueAvailable qa = findQueueFamily(pdev); // check for the proper queue
-		checkDeviceExtensions(pdev); // check for vk_khr_swapchain at least
 		swapChainSupportDetails d = querySwapChainSupport(pdev); // verify swap chain information before creating a new logical device
 
 		if (!qa.graphics.has_value() || d.formats.size() == 0 || d.presentModes.size() == 0) {
@@ -394,7 +395,7 @@ private:
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
 		createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 		
-		// enabledLayerCount and ppEnabledLayerNames are no longer used by drivers in vk 1.1
+		// enabledLayerCount and ppEnabledLayerNames are deprecated
 		
 		if (vkCreateDevice(pdev, &createInfo, nullptr, &dev)) {
 			throw std::runtime_error("cannot create virtual device!");
@@ -433,7 +434,7 @@ private:
 		sInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		// if the presentation and graphics queues are different, then both have to access the swapchain and we have to set that behavior here.
 		sInfo.preTransform = sdet.cap.currentTransform;
-		sInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // no alpha
+		sInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // no alpha compositing
 		sInfo.clipped = VK_TRUE; // don't render pixels covered by another window
 		sInfo.oldSwapchain = VK_NULL_HANDLE; // no previous swapchain exists rn
 
@@ -492,16 +493,16 @@ private:
 		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // layout of image before render pass - don't care since we'll be clearing it anyways
 		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout of image at end of render pass
 
-		VkAttachmentReference colorAttachmentRef{}; // for each render pass, subpasses exist
+		VkAttachmentReference colorAttachmentRef{};
 		colorAttachmentRef.attachment = 0; // which attachment we're talking about in pAttachments
-		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // use a color attachment for our only subpass
+		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // layout to transition to at the start of the subpass
 		
 		VkSubpassDescription sub{};
 		sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		sub.colorAttachmentCount = 1; // color attachments are FS outputs, can also specify input / depth attachments, etc.
 		sub.pColorAttachments = &colorAttachmentRef;
 		
-		VkSubpassDependency sdep{}; // there's a dependency between reading an image in and writing to it, so describe it here
+		VkSubpassDependency sdep{}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
 		sdep.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
 		sdep.dstSubpass = 0; // index into pSubpasses
 
@@ -523,37 +524,6 @@ private:
 		if (vkCreateRenderPass(dev, &createInfo, nullptr, &renderPass) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create render pass!");
 		}
-	}
-
-	static std::vector<char> readFile(const std::string& path) {
-		std::ifstream file(path, std::ios::ate | std::ios::binary);
-
-		if (!file) {
-			throw std::runtime_error("cannot open file " + path + "!");
-		}
-		
-		size_t len = static_cast<size_t>(file.tellg());
-		file.seekg(0);
-		
-		std::vector<char> contents(len); // using vector of char because spir-v isn't ascii
-		file.read(contents.data(), len);
-		
-		file.close();
-
-		return contents;
-	}
-
-	VkShaderModule createShaderModule(const std::vector<char>& spv) {
-		VkShaderModuleCreateInfo createInfo{};
-		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		createInfo.codeSize = spv.size();
-		createInfo.pCode = reinterpret_cast<const uint32_t*>(spv.data());
-
-		VkShaderModule mod;
-		if (vkCreateShaderModule(dev, &createInfo, nullptr, &mod) != VK_SUCCESS) {
-			throw std::runtime_error("cannot create shader module!");
-		}
-		return mod;
 	}
 
 	struct ubo {
@@ -648,6 +618,37 @@ private:
 			vkUpdateDescriptorSets(dev, 1, &writeSet, 0, nullptr);
 		}
 	}
+
+		static std::vector<char> readFile(const std::string& path) {
+		std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+		if (!file) {
+			throw std::runtime_error("cannot open file " + path + "!");
+		}
+		
+		size_t len = static_cast<size_t>(file.tellg());
+		file.seekg(0);
+		
+		std::vector<char> contents(len); // using vector of char because spir-v isn't utf-8
+		file.read(contents.data(), len);
+		
+		file.close();
+
+		return contents;
+	}
+
+	VkShaderModule createShaderModule(const std::vector<char>& spv) {
+		VkShaderModuleCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		createInfo.codeSize = spv.size();
+		createInfo.pCode = reinterpret_cast<const uint32_t*>(spv.data());
+
+		VkShaderModule mod;
+		if (vkCreateShaderModule(dev, &createInfo, nullptr, &mod) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create shader module!");
+		}
+		return mod;
+	}
 	
 	VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
 	VkPipeline gpipe = VK_NULL_HANDLE;
@@ -726,7 +727,7 @@ private:
 		rasterCreateInfo.depthClampEnable = VK_FALSE; // clamps depth to range instead of discarding it
 		rasterCreateInfo.rasterizerDiscardEnable = VK_FALSE; // disables rasterization if true
 		rasterCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterCreateInfo.cullMode = VK_CULL_MODE_NONE; // no culling for now
+		rasterCreateInfo.cullMode = VK_CULL_MODE_NONE;
 		rasterCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterCreateInfo.lineWidth = 1.0f;
@@ -751,14 +752,11 @@ private:
 		colorCreateInfo.attachmentCount = 1;
 		colorCreateInfo.pAttachments = &colorAttachment;
 
-		VkDynamicState dynamStates[] = {
-			VK_DYNAMIC_STATE_VIEWPORT,
-			VK_DYNAMIC_STATE_LINE_WIDTH,
-		};
+		VkDynamicState dynamStates[] = {};
 		
 		VkPipelineDynamicStateCreateInfo dynCreateInfo{};
 		dynCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-		dynCreateInfo.dynamicStateCount = 2;
+		dynCreateInfo.dynamicStateCount = 0;
 		dynCreateInfo.pDynamicStates = dynamStates;
 		
 		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // for descriptor sets
@@ -1177,14 +1175,23 @@ private:
 	std::vector<VkSemaphore> imageAvailSems; // use seperate semaphores per frame so we can send >1 frame at once
 	std::vector<VkSemaphore> renderDoneSems;
 	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the next one
-	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order or framesInFlight may be high
+	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
 
+	enum timeStates {
+		
+	};
+	
 	void createSyncs() {
 		imageAvailSems.resize(framesInFlight, VK_NULL_HANDLE);
 		renderDoneSems.resize(framesInFlight, VK_NULL_HANDLE);
 		inFlightFences.resize(framesInFlight, VK_NULL_HANDLE);
 		imagesInFlight = std::vector<VkFence>(swapImages.size(), VK_NULL_HANDLE); // this needs to be re-created on a window resize
 
+		VkSemaphoreTypeCreateInfo typeCreateInfo{};
+		typeCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+		typeCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+		typeCreateInfo.initialValue = 0;
+		
 		VkSemaphoreCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 		
@@ -1279,8 +1286,13 @@ private:
 	size_t currFrame = 0;
 
 	void drawFrame() {
+		
+		// NOTE: acquiring an image, writing to it, and presenting it are all async operations.
+		// The relevant vulkan calls return before the operation completes.
+
 		uint32_t index;
 		VkResult r = vkAcquireNextImageKHR(dev, swap, UINT64_MAX, imageAvailSems[currFrame], VK_NULL_HANDLE, &index);
+		// NOTE: the value of index may jump around - there's no guarantee that it increases linearly
 		
 		if (r == VK_ERROR_OUT_OF_DATE_KHR || resizeOccurred) {
 			recreateSwapChain(); // have to recreate the swapchain here
