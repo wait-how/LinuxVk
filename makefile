@@ -20,7 +20,7 @@ CFLAGS := -Wall -std=c++17 $(DIRS) $(LIBFLAGS)
 
 # map .cpp files to objects files of the same name
 OBJFILES := $(SRCFILES:cpp=o)
-LDFLAGS := 
+LDFLAGS := -fuse-ld=lld
 
 # specify a single target name here
 TARGETS := slow debug release small lineprofile profile
@@ -32,8 +32,8 @@ MAINS := $(addsuffix .o, $(TARGETS) )
 # maximum information, for serious debugging
 slow: CFLAGS += -g$(DB) -O0
 
-# some optimization
-debug: CFLAGS += -g$(DB) -Og
+# important warnings and some runtime stack-checking
+debug: CFLAGS += -Wextra -D_FORTIFY_SOURCE=2 -g$(DB) -Og
 
 # fastest executable on my machine
 release: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin

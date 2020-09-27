@@ -34,7 +34,7 @@ namespace vload {
 	void vloader::processNode(aiNode* node, const aiScene* scene) {
 		for (size_t i = 0; i < node->mNumMeshes; i++) {
 			aiMesh* temp = scene->mMeshes[node->mMeshes[i]];
-			meshList.push_back(processMesh(temp, scene));
+			meshList.push_back(processMesh(temp));
 		}
 
 		for (size_t i = 0; i < node->mNumChildren; i++) {
@@ -42,7 +42,7 @@ namespace vload {
 		}
 	}
 
-	mesh vloader::processMesh(aiMesh* inMesh, const aiScene* scene) {
+	mesh vloader::processMesh(aiMesh* inMesh) {
 		std::vector<vertex> vList;
 		std::vector<uint32_t> indices;
 

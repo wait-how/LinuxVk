@@ -29,8 +29,8 @@ namespace cam {
 
 		// target is 1 away from pos, always.  This makes math easier (hypotenuse = 1)
 
-		double xoff = x - prevX;
-		double yoff = prevY - y;
+		float xoff = x - prevX;
+		float yoff = prevY - y;
 
 		prevX = x;
 		prevY = y;

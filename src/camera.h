@@ -25,11 +25,11 @@ namespace cam {
 
 		void update(GLFWwindow*);
 	private:
-		float rads(float deg) { return deg * M_PI / 180.0; }
+		float rads(float deg) { return deg * float(M_PI) / 180.0f; }
 
 		int skip;
-		double prevX, prevY;
-		double prevTime;
-		double mscale, lscale; // movement and look speeds
+		float prevX, prevY;
+		float prevTime;
+		float mscale, lscale; // movement and look speeds
 	};
 };

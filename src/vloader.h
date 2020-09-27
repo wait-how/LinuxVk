@@ -31,6 +31,6 @@ namespace vload {
 		std::vector<mesh> meshList;
 	private:
 		void processNode(aiNode* node, const aiScene* scene);
-		mesh processMesh(aiMesh* inMesh, const aiScene* scene);
+		mesh processMesh(aiMesh* inMesh);
 	};
 }

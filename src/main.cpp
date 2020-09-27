@@ -485,7 +485,7 @@ private:
 	void createRenderPass() {
 		VkAttachmentDescription colorAttachment{};
 		colorAttachment.format = swapFormat; // format from swapchain image
-		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT; // 1 sample per pixel
+		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
@@ -503,6 +503,7 @@ private:
 		sub.pColorAttachments = &colorAttachmentRef;
 		
 		VkSubpassDependency sdep{}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
+		// solution here is to delay writing to the framebuffer until the image we need is acquired (and the transition has taken place)
 		sdep.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
 		sdep.dstSubpass = 0; // index into pSubpasses
 
@@ -619,7 +620,7 @@ private:
 		}
 	}
 
-		static std::vector<char> readFile(const std::string& path) {
+	static std::vector<char> readFile(const std::string& path) {
 		std::ifstream file(path, std::ios::ate | std::ios::binary);
 
 		if (!file) {
@@ -838,6 +839,7 @@ private:
 
 		// turn a one-hot typeFilter into an int representing the index we want in memoryTypes
 		for (size_t i = 0; i < memProp.memoryTypeCount; i++) {
+			// if the type matches one of the allowed types given to us and it has the right flags, return it
 			if ((typeFilter & (1 << i)) && (memProp.memoryTypes[i].propertyFlags & properties)) {
 				return i;
 			}
@@ -860,7 +862,7 @@ private:
 		VkMemoryRequirements mreq{};
 		vkGetBufferMemoryRequirements(dev, buf, &mreq);
 
-		int memType = findMemoryType(mreq.memoryTypeBits, props);
+		uint32_t memType = findMemoryType(mreq.memoryTypeBits, props);
 
 		VkMemoryAllocateInfo allocInfo{};
 		allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
@@ -1172,25 +1174,17 @@ private:
 
 	constexpr static unsigned int framesInFlight = 2;
 
+	// swapchain image acquisition requires a binary semaphore since it might be hard for implementations to do timeline semaphores
 	std::vector<VkSemaphore> imageAvailSems; // use seperate semaphores per frame so we can send >1 frame at once
 	std::vector<VkSemaphore> renderDoneSems;
 	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the next one
 	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
-
-	enum timeStates {
-		
-	};
 	
 	void createSyncs() {
 		imageAvailSems.resize(framesInFlight, VK_NULL_HANDLE);
 		renderDoneSems.resize(framesInFlight, VK_NULL_HANDLE);
 		inFlightFences.resize(framesInFlight, VK_NULL_HANDLE);
 		imagesInFlight = std::vector<VkFence>(swapImages.size(), VK_NULL_HANDLE); // this needs to be re-created on a window resize
-
-		VkSemaphoreTypeCreateInfo typeCreateInfo{};
-		typeCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
-		typeCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
-		typeCreateInfo.initialValue = 0;
 		
 		VkSemaphoreCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -1216,7 +1210,7 @@ private:
 		glfwGetFramebufferSize(w, &width, &height);
 		while (width == 0 || height == 0) { // wait until window isn't hidden anymore
 			glfwGetFramebufferSize(w, &width, &height);
-			glfwPollEvents();
+			glfwWaitEvents(); // put thread to sleep until events exist
 		}
 		
 		vkDeviceWaitIdle(dev);
@@ -1275,7 +1269,7 @@ private:
 		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.view = glm::lookAt(c.pos, c.front, glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
-		u1.proj[1][1] *= -1; // flip direction of y-axis for vulkan ndc system
+		u1.proj[1][1] *= -1.0; // flip direction of y-axis for vulkan ndc system
 
 		void* data;
 		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
@@ -1302,8 +1296,9 @@ private:
 			throw std::runtime_error("cannot acquire swapchain image!");
 		}
 
+		// wait for the previous frame to finish presenting the image
 		if (imagesInFlight[index] != VK_NULL_HANDLE) {
-			vkWaitForFences(dev, 1, &imagesInFlight[index], VK_TRUE, UINT64_MAX); // if a previous image is using a fence, wait on it
+			vkWaitForFences(dev, 1, &imagesInFlight[index], VK_TRUE, UINT64_MAX);
 		}
 
 		imagesInFlight[index] = inFlightFences[currFrame]; // this frame is using the fence at currFrame
@@ -1319,7 +1314,9 @@ private:
 		si.waitSemaphoreCount = 1;
 		si.pWaitSemaphores = renderBeginSems;
 
-		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT }; // imageAvailSem waits at this point in the pipeline
+		// imageAvailSem waits at this point in the pipeline
+		// NOTE: stages not covered by a semaphore may execute before the semaphore is signaled.
+		VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 		si.pWaitDstStageMask = waitStages;
 		
 		si.commandBufferCount = 1;

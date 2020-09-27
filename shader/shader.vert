@@ -10,7 +10,7 @@ layout (location = 1) in vec3 normal;
 layout (location = 2) in vec3 tangent;
 layout (location = 3) in vec2 uv;
 
-layout (binding = 0) uniform uniformBuffer {
+layout (set = 0, binding = 0) uniform uniformBuffer {
 	mat4 model;
 	mat4 view;
 	mat4 proj;
