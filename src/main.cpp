@@ -452,7 +452,7 @@ private:
 		swapExtent = e;
 	}
 
-	VkImageView createImageView(VkImage im, VkFormat format) {
+	VkImageView createImageView(VkImage im, VkFormat format, VkImageAspectFlags aspectMask) {
 		VkImageViewCreateInfo createInfo{};
 
 		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -469,7 +469,7 @@ private:
 		createInfo.components = map;
 
 		VkImageSubresourceRange range;
-		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.aspectMask = aspectMask;
 		range.baseMipLevel = 0;
 		range.levelCount = 1;
 		range.baseArrayLayer = 0;
@@ -487,36 +487,74 @@ private:
 
 	std::vector<VkImageView> swapImageViews;
 	
-	void createImageViews() {
+	void createSwapViews() {
 		swapImageViews.resize(swapImages.size());
 		for (size_t i = 0; i < swapImages.size(); i++) {
-			swapImageViews[i] = createImageView(swapImages[i], swapFormat);
+			swapImageViews[i] = createImageView(swapImages[i], swapFormat, VK_IMAGE_ASPECT_COLOR_BIT);
 		}
 	}
 	
 	VkRenderPass renderPass = VK_NULL_HANDLE;
-	
+
+	VkFormat depthFormat;
+
+	VkFormat findFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags features) {
+		for (auto format : formats) {
+			VkFormatProperties formatProps;
+			vkGetPhysicalDeviceFormatProperties(pdev, format, &formatProps);
+			if (tiling == VK_IMAGE_TILING_LINEAR && (formatProps.linearTilingFeatures & features)) {
+				return format;
+			} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (formatProps.optimalTilingFeatures & features)) {
+				return format;
+			}
+		}
+
+		return VK_FORMAT_UNDEFINED;
+	}
+
 	// stores framebuffer config
 	void createRenderPass() {
-		VkAttachmentDescription colorAttachment{};
-		colorAttachment.format = swapFormat; // format from swapchain image
-		colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // layout of image before render pass - don't care since we'll be clearing it anyways
-		colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout of image at end of render pass
+		VkAttachmentDescription attachments[2] = {};
+		attachments[0].format = swapFormat; // format from swapchain image
+		attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // layout of image before render pass - don't care since we'll be clearing it anyways
+		attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout of image at end of render pass
+
+		std::vector<VkFormat> formatList = {
+			VK_FORMAT_D24_UNORM_S8_UINT,
+			VK_FORMAT_X8_D24_UNORM_PACK32, // no stencil
+		};
+
+		// check to see if we can use a 24-bit depth component
+		depthFormat = findFormat(formatList, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+		attachments[1].format = depthFormat;
+		attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+		attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR; // depth has to be cleared to something
+		attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+		attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // don't care about this since we clear anyways, like above
+		attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		VkAttachmentReference colorAttachmentRef{};
 		colorAttachmentRef.attachment = 0; // which attachment we're talking about in pAttachments
 		colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // layout to transition to at the start of the subpass
 		
+		VkAttachmentReference depthAttachmentRef{};
+		depthAttachmentRef.attachment = 1;
+		depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
 		VkSubpassDescription sub{};
 		sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 		sub.colorAttachmentCount = 1; // color attachments are FS outputs, can also specify input / depth attachments, etc.
 		sub.pColorAttachments = &colorAttachmentRef;
-		
+		sub.pDepthStencilAttachment = &depthAttachmentRef;
+
 		VkSubpassDependency sdep{}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
 		// solution here is to delay writing to the framebuffer until the image we need is acquired (and the transition has taken place)
 		sdep.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
@@ -530,8 +568,8 @@ private:
 
 		VkRenderPassCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-		createInfo.attachmentCount = 1;
-		createInfo.pAttachments = &colorAttachment;
+		createInfo.attachmentCount = 2;
+		createInfo.pAttachments = attachments;
 		createInfo.subpassCount = 1;
 		createInfo.pSubpasses = &sub;
 		createInfo.dependencyCount = 1;
@@ -775,8 +813,14 @@ private:
 		msCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 		msCreateInfo.sampleShadingEnable = VK_FALSE;
 		msCreateInfo.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-		
-		// TODO: we'll eventually create a depth buffer here
+
+		VkPipelineDepthStencilStateCreateInfo dCreateInfo{};
+		dCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+		dCreateInfo.depthTestEnable = VK_TRUE;
+		dCreateInfo.depthWriteEnable = VK_TRUE;
+		dCreateInfo.depthCompareOp = VK_COMPARE_OP_LESS;
+		dCreateInfo.depthBoundsTestEnable = VK_FALSE;
+		dCreateInfo.stencilTestEnable = VK_FALSE;
 
 		VkPipelineColorBlendAttachmentState colorAttachment{}; // blending information per fb
 		colorAttachment.blendEnable = VK_FALSE;
@@ -816,6 +860,7 @@ private:
 		pipeCreateInfo.pViewportState = &viewCreateInfo;
 		pipeCreateInfo.pRasterizationState = &rasterCreateInfo;
 		pipeCreateInfo.pMultisampleState = &msCreateInfo;
+		pipeCreateInfo.pDepthStencilState = &dCreateInfo;
 		pipeCreateInfo.pColorBlendState = &colorCreateInfo;
 		pipeCreateInfo.layout = pipeLayout; // handle, not a struct.
 		pipeCreateInfo.renderPass = renderPass;
@@ -837,14 +882,18 @@ private:
 		swapFramebuffers.resize(swapImageViews.size());
 
 		for (size_t i = 0; i < swapFramebuffers.size(); i++) {
+			
+			// having a single depth buffer for every swap image only works if graphics and pres queues are the same.
+			// this is due to submissions in a single queue having to respect both submission order and semaphores
 			VkImageView attachments[] = {
-				swapImageViews[i]
+				swapImageViews[i],
+				depthView
 			};
 
 			VkFramebufferCreateInfo fCreateInfo{};
 			fCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			fCreateInfo.renderPass = renderPass;
-			fCreateInfo.attachmentCount = 1;
+			fCreateInfo.attachmentCount = 2;
 			fCreateInfo.pAttachments = attachments; // framebuffer attaches to the image view of a swapchain
 			fCreateInfo.width = swapExtent.width;
 			fCreateInfo.height = swapExtent.height;
@@ -1177,6 +1226,21 @@ private:
 			throw std::runtime_error("cannot create sampler!");
 		}
 	}
+
+	VkImage depthImage = VK_NULL_HANDLE;
+	VkDeviceMemory depthMemory = VK_NULL_HANDLE;
+	VkImageView depthView = VK_NULL_HANDLE;
+
+	void createDepthImage() {
+		createImage(swapExtent.width, swapExtent.height, 
+			depthFormat,
+			VK_IMAGE_TILING_OPTIMAL,
+			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+			depthImage, depthMemory);
+
+		depthView = createImageView(depthImage, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT);
+	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	
@@ -1208,11 +1272,13 @@ private:
 			rBeginInfo.framebuffer = swapFramebuffers[i];
 			rBeginInfo.renderArea.offset = { 0, 0 };
 			rBeginInfo.renderArea.extent = swapExtent;
+
+			VkClearValue attachClearValues[2];
+			attachClearValues[0].color = { 0.0, 0.0, 0.0, 1.0 };
+			attachClearValues[1].depthStencil = {1.0, 0};
 			
-			VkClearValue clear = { { { 0.0, 0.0, 0.0, 1.0 } } }; // union initialization
-			
-			rBeginInfo.clearValueCount = 1;
-			rBeginInfo.pClearValues = &clear;
+			rBeginInfo.clearValueCount = 2;
+			rBeginInfo.pClearValues = attachClearValues;
 			
 			// actually render stuff!
 			vkCmdBeginRenderPass(commandBuffers[i], &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
@@ -1253,6 +1319,7 @@ private:
 		
 		VkFenceCreateInfo fCreateInfo{};
 		fCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+		fCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
 		for (unsigned int i = 0; i < framesInFlight; i++) {
 			VkResult r1 = vkCreateSemaphore(dev, &createInfo, nullptr, &imageAvailSems[i]);
@@ -1280,7 +1347,7 @@ private:
 		cleanupSwapChain();
 
 		createSwapChain();
-		createImageViews();
+		createSwapViews();
 		createRenderPass();
 		createGraphicsPipeline();
 		createFramebuffers();
@@ -1301,19 +1368,20 @@ private:
 			setupDebugMessenger();
 		}
 		createSurface();
-		pickPhysicalDevice(intel);
+		pickPhysicalDevice(nvidia);
 		createLogicalDevice();
 		createSwapChain();
-		createImageViews();
+		createSwapViews();
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
+		createDepthImage();
 		createFramebuffers();
 		createCommandPool();
 		vload::vloader v("models/cube.obj");
 		createVertexBuffer(v.meshList[0].verts);
 		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
-		texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB);
+		texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 		createSampler();
 		createIndexBuffer(v.meshList[0].indices);
 		numIndices = v.meshList[0].indices.size();
@@ -1324,6 +1392,8 @@ private:
 		createSyncs();
 	}
 
+	glm::vec3 cpos = glm::vec3(0.0, 0.0, -3.0);
+
 	void updateUniformBuffer(uint32_t imageIndex) {
 		using namespace std::chrono;
 		static auto start = high_resolution_clock::now();
@@ -1333,9 +1403,12 @@ private:
 		ubo u1;
 		// TODO: the .obj format assumes that +Y is up, not down.
 		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		u1.model = glm::rotate(u1.model, time * glm::radians(25.0f), glm::vec3(0.0, 0.0, 1.0));
 		u1.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
-		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
-		u1.proj[1][1] *= -1.0;
+		u1.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
+		
+		// this line is required by the tutorial but breaks stuff?
+		//u1.proj[1][1] *= -1.0;
 
 		void* data;
 		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
@@ -1346,9 +1419,12 @@ private:
 	size_t currFrame = 0;
 
 	void drawFrame() {
-		
+
 		// NOTE: acquiring an image, writing to it, and presenting it are all async operations.
 		// The relevant vulkan calls return before the operation completes.
+		
+		// wait for the image using the fence to complete
+		vkWaitForFences(dev, 1, &inFlightFences[currFrame], VK_TRUE, UINT64_MAX);
 
 		uint32_t index;
 		VkResult r = vkAcquireNextImageKHR(dev, swap, UINT64_MAX, imageAvailSems[currFrame], VK_NULL_HANDLE, &index);
@@ -1362,7 +1438,7 @@ private:
 			throw std::runtime_error("cannot acquire swapchain image!");
 		}
 
-		// wait for the previous frame to finish presenting the image
+		// wait for the previous frame to finish using the swapchain image at index
 		if (imagesInFlight[index] != VK_NULL_HANDLE) {
 			vkWaitForFences(dev, 1, &imagesInFlight[index], VK_TRUE, UINT64_MAX);
 		}
@@ -1398,10 +1474,8 @@ private:
 		pInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		pInfo.waitSemaphoreCount = 1;
 		pInfo.pWaitSemaphores = renderEndSems;
-
-		VkSwapchainKHR swaps[] = { swap };
 		pInfo.swapchainCount = 1;
-		pInfo.pSwapchains = swaps;
+		pInfo.pSwapchains = &swap;
 		pInfo.pImageIndices = &index;
 		
 		r = vkQueuePresentKHR(gQueue, &pInfo);
@@ -1413,8 +1487,7 @@ private:
 			throw std::runtime_error("cannot submit to queue!");
 		}
 		// (or vkQueueWaitIdle)
-		
-		vkWaitForFences(dev, 1, &inFlightFences[currFrame], VK_TRUE, UINT64_MAX);
+
 		currFrame = (currFrame + 1) % framesInFlight;
 	}
 
@@ -1470,6 +1543,10 @@ private:
 		vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
 
 		vkDestroyCommandPool(dev, cp, nullptr);
+
+		vkDestroyImageView(dev, depthView, nullptr);
+		vkFreeMemory(dev, depthMemory, nullptr);
+		vkDestroyImage(dev, depthImage, nullptr);
 
 		vkDestroySampler(dev, texSamp, nullptr);
 		vkDestroyImageView(dev, texView, nullptr);

@@ -2,7 +2,8 @@
 
 // for vulkan:
 // NDCs are (-1, -1) in top left to (1, 1) in bottom right
-// depth goes (0, 1)
+// 		(right handed system, -Y is up)
+// depth goes from 0 to 1 as object gets farther away
 // gl_VertexIndex instead of gl_VertexID
 
 layout (location = 0) in vec3 pos;

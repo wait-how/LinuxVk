@@ -8,5 +8,5 @@ layout (binding = 1) uniform sampler2D tex;
 layout (location = 0) out vec4 fColor;
 
 void main() {
-	fColor = mix(color, texture(tex, tc), 1.0f);
+	fColor = mix(color, texture(tex, tc), 0.5f);
 }

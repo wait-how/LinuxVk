@@ -39,23 +39,23 @@ namespace cam {
 		float swapCoords = (vulkanCoords) ? -1.0f : 1.0f;
 
 		if (mouseLook) {
-			hangle += (float)(xoff * lscale) * swapCoords;
-			vangle += (float)(yoff * lscale) * swapCoords;
+			hangle += xoff * lscale;
+			vangle += yoff * lscale * swapCoords;
 		}
 
 		// if using a laptop, sometimes the mouse can be annoying. keyboard versions of the same thing are set here.
 		if (keyboardLook) {
 			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-				hangle -= 20.0f * lscale * swapCoords;
+				hangle -= rads(30.0f);
 			}
 			if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-				hangle += 20.0f * lscale * swapCoords;
+				hangle += rads(30.0f);
 			}
 			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-				vangle += 20.0f * lscale * swapCoords;
+				vangle += rads(30.0f) * swapCoords;
 			}
 			if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-				vangle -= 20.0f * lscale * swapCoords;
+				vangle -= rads(30.0f) * swapCoords;
 			}
 		}
 		
@@ -74,22 +74,22 @@ namespace cam {
 		// move camera according to user input
 		// callback is annoying since it only triggers when key is updated, this is kinda cleaner and I don't really care if I miss a single keypress or two
 		if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
-			pos += glm::vec3((float)mscale) * front; // can't multiply a scalar with a vector here...
+			pos += glm::vec3(float(mscale)) * front; // can't multiply a scalar with a vector here...
 		}
 		if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
-			pos -= glm::vec3((float)mscale) * front;
+			pos -= glm::vec3(float(mscale)) * front;
 		}
 		if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS) {
-			pos += glm::vec3((float)mscale) * rdir;
+			pos += glm::vec3(float(mscale)) * rdir * swapCoords;
 		}
 		if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
-			pos -= glm::vec3((float)mscale) * rdir;
+			pos -= glm::vec3(float(mscale)) * rdir * swapCoords;
 		}
 		if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-			pos += glm::vec3((float)mscale) * updir;
+			pos += glm::vec3(float(mscale)) * updir;
 		}
 		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
-			pos -= glm::vec3((float)mscale) * updir;
+			pos -= glm::vec3(float(mscale)) * updir;
 		}
 		if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS) { // reset camera to original location
 			pos = glm::vec3(0.0f);

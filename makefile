@@ -55,7 +55,7 @@ top: debug
 
 # clean out .o and executable files
 clean:
-	@rm -f $(TARGETS) $(OBJFILES) default.prof* times.txt
+	@rm -f $(TARGETS) $(OBJFILES) default.prof* times.txt gmon.out
 
 spv:
 	@make -C shader
