@@ -242,9 +242,9 @@ private:
 				goodEnough = true;
 		}
 
-		goodEnough &= dfeat.geometryShader;
-		goodEnough &= dfeat.tessellationShader;
-		goodEnough &= checkDeviceExtensions(pd);
+		goodEnough &= dfeat.geometryShader |
+					  dfeat.tessellationShader |
+					  checkDeviceExtensions(pd);
 
 		return goodEnough;
 	}
@@ -385,7 +385,8 @@ private:
 		float pri = 1.0f;
 		queueInfo.pQueuePriorities = &pri; // highest priority
 		
-		VkPhysicalDeviceFeatures feat{}; // not using anything fancy right now, so set to false
+		VkPhysicalDeviceFeatures feat{};
+		feat.samplerAnisotropy = VK_TRUE;
 		
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -451,31 +452,45 @@ private:
 		swapExtent = e;
 	}
 
+	VkImageView createImageView(VkImage im, VkFormat format) {
+		VkImageViewCreateInfo createInfo{};
+
+		createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		createInfo.image = im;
+		createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		createInfo.format = format;
+		
+		VkComponentMapping map;
+		map.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+		map.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+		map.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+		map.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+		createInfo.components = map;
+
+		VkImageSubresourceRange range;
+		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		range.baseMipLevel = 0;
+		range.levelCount = 1;
+		range.baseArrayLayer = 0;
+		range.layerCount = 1;
+
+		createInfo.subresourceRange = range;
+
+		VkImageView view = VK_NULL_HANDLE;
+		if (vkCreateImageView(dev, &createInfo, nullptr, &view) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create image view!");
+		}
+
+		return view;
+	}
+
 	std::vector<VkImageView> swapImageViews;
 	
 	void createImageViews() {
 		swapImageViews.resize(swapImages.size());
 		for (size_t i = 0; i < swapImages.size(); i++) {
-			VkImageViewCreateInfo createInfo{};
-			createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-			createInfo.image = swapImages[i];
-			createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-			createInfo.format = swapFormat;
-			
-			createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY; // or r, g, b, a
-			createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-			createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-			createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			createInfo.subresourceRange.baseMipLevel = 0;
-			createInfo.subresourceRange.levelCount = 1;
-			createInfo.subresourceRange.baseArrayLayer = 0;
-			createInfo.subresourceRange.layerCount = 1;
-			
-			if (vkCreateImageView(dev, &createInfo, nullptr, &swapImageViews[i]) != VK_SUCCESS) {
-				throw std::runtime_error("cannot create image views!");
-			}
+			swapImageViews[i] = createImageView(swapImages[i], swapFormat);
 		}
 	}
 	
@@ -551,16 +566,23 @@ private:
 	VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
 
 	void createDescriptorSetLayout() {
-		VkDescriptorSetLayoutBinding layoutBinding{};
-		layoutBinding.binding = 0;
-		layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		layoutBinding.descriptorCount = 1;
-		layoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		VkDescriptorSetLayoutBinding bindings[2] = {};
+
+		bindings[0].binding = 0;
+		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		bindings[0].descriptorCount = 1;
+		bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		bindings[1].binding = 1;
+		// images and samplers can actually be bound separately!
+		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		bindings[1].descriptorCount = 1;
+		bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		VkDescriptorSetLayoutCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		createInfo.bindingCount = 1;
-		createInfo.pBindings = &layoutBinding;
+		createInfo.bindingCount = 2;
+		createInfo.pBindings = bindings;
 
 		if (vkCreateDescriptorSetLayout(dev, &createInfo, nullptr, &dSetLayout) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create descriptor set!");
@@ -570,15 +592,18 @@ private:
 	VkDescriptorPool dPool = VK_NULL_HANDLE;
 
 	void createDescriptorPool() {
-		VkDescriptorPoolSize poolSize{};
-		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSize.descriptorCount = swapImages.size();
+		VkDescriptorPoolSize poolSizes[2];
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[0].descriptorCount = swapImages.size();
+
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		poolSizes[1].descriptorCount = swapImages.size();
 
 		VkDescriptorPoolCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		createInfo.maxSets = swapImages.size();
-		createInfo.poolSizeCount = 1;
-		createInfo.pPoolSizes = &poolSize;
+		createInfo.poolSizeCount = 2;
+		createInfo.pPoolSizes = poolSizes;
 
 		if (vkCreateDescriptorPool(dev, &createInfo, nullptr, &dPool) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create descriptor pool!");
@@ -607,16 +632,29 @@ private:
 			bufferInfo.offset = 0;
 			bufferInfo.range = sizeof(ubo);
 
-			VkWriteDescriptorSet writeSet{};
-			writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writeSet.dstSet = dSet[i];
-			writeSet.dstBinding = 0;
-			writeSet.dstArrayElement = 0;
-			writeSet.descriptorCount = 1;
-			writeSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-			writeSet.pBufferInfo = &bufferInfo;
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.sampler = texSamp;
+			imageInfo.imageView = texView;
+			imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-			vkUpdateDescriptorSets(dev, 1, &writeSet, 0, nullptr);
+			VkWriteDescriptorSet sets[2] = {};
+			sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			sets[0].dstSet = dSet[i];
+			sets[0].dstBinding = 0;
+			sets[0].dstArrayElement = 0;
+			sets[0].descriptorCount = 1;
+			sets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			sets[0].pBufferInfo = &bufferInfo;
+
+			sets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			sets[1].dstSet = dSet[i];
+			sets[1].dstBinding = 1;
+			sets[1].dstArrayElement = 0;
+			sets[1].descriptorCount = 1;
+			sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+			sets[1].pImageInfo = &imageInfo;
+
+			vkUpdateDescriptorSets(dev, 2, sets, 0, nullptr);
 		}
 	}
 
@@ -684,13 +722,13 @@ private:
 		for (size_t i = 0; i < 4; i++) {
 			attrDesc[i].binding = 0;
 			attrDesc[i].location = i;
-			attrDesc[i].offset = 4 * i; // all offsets are rounded up to 4 bytes due to alignas
+			attrDesc[i].offset = 16 * i; // all offsets are rounded up to 16 bytes due to alignas
 		}
 
 		attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[2].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attrDesc[3].format = VK_FORMAT_R32G32_SFLOAT;
+		attrDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
+		attrDesc[3].format = VK_FORMAT_R32G32B32_SFLOAT;
 		
 		VkPipelineVertexInputStateCreateInfo vinCreateInfo{};
 		vinCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -728,7 +766,7 @@ private:
 		rasterCreateInfo.depthClampEnable = VK_FALSE; // clamps depth to range instead of discarding it
 		rasterCreateInfo.rasterizerDiscardEnable = VK_FALSE; // disables rasterization if true
 		rasterCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
-		rasterCreateInfo.cullMode = VK_CULL_MODE_NONE;
+		rasterCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
 		rasterCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 		rasterCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterCreateInfo.lineWidth = 1.0f;
@@ -1115,6 +1153,30 @@ private:
 		vkFreeMemory(dev, smem, nullptr);
 		vkDestroyBuffer(dev, sbuf, nullptr);
 	}
+
+	VkImageView texView = VK_NULL_HANDLE;
+
+	VkSampler texSamp = VK_NULL_HANDLE;
+
+	void createSampler() {
+		VkSamplerCreateInfo createInfo{};
+		createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		createInfo.magFilter = VK_FILTER_LINEAR;
+		createInfo.minFilter = VK_FILTER_LINEAR;
+		createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+		createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		createInfo.mipLodBias = 0.0f;
+		createInfo.anisotropyEnable = VK_TRUE;
+		createInfo.maxAnisotropy = 16.0f;
+		createInfo.compareEnable = VK_FALSE;
+		createInfo.minLod = 0.0f;
+		createInfo.maxLod = 0.25f;
+
+		if (vkCreateSampler(dev, &createInfo, nullptr, &texSamp) != VK_SUCCESS) {
+			throw std::runtime_error("cannot create sampler!");
+		}
+	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	
@@ -1233,12 +1295,13 @@ private:
 
 	void init() {
 		createWindow();
+		//glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
 		createInstance();
 		if (verify) {
 			setupDebugMessenger();
 		}
 		createSurface();
-		pickPhysicalDevice(nvidia);
+		pickPhysicalDevice(intel);
 		createLogicalDevice();
 		createSwapChain();
 		createImageViews();
@@ -1247,9 +1310,11 @@ private:
 		createGraphicsPipeline();
 		createFramebuffers();
 		createCommandPool();
-		vload::vloader v("models/donut.obj");
+		vload::vloader v("models/cube.obj");
 		createVertexBuffer(v.meshList[0].verts);
 		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
+		texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB);
+		createSampler();
 		createIndexBuffer(v.meshList[0].indices);
 		numIndices = v.meshList[0].indices.size();
 		createUniformBuffers();
@@ -1266,10 +1331,11 @@ private:
 		float time = duration<float, seconds::period>(current - start).count();
 
 		ubo u1;
+		// TODO: the .obj format assumes that +Y is up, not down.
 		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		u1.view = glm::lookAt(c.pos, c.front, glm::vec3(0.0f, 1.0f, 0.0f));
+		u1.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.proj = glm::perspective(25.0f, swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
-		u1.proj[1][1] *= -1.0; // flip direction of y-axis for vulkan ndc system
+		u1.proj[1][1] *= -1.0;
 
 		void* data;
 		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
@@ -1405,6 +1471,8 @@ private:
 
 		vkDestroyCommandPool(dev, cp, nullptr);
 
+		vkDestroySampler(dev, texSamp, nullptr);
+		vkDestroyImageView(dev, texView, nullptr);
 		vkFreeMemory(dev, texMem, nullptr);
 		vkDestroyImage(dev, texImage, nullptr);
 

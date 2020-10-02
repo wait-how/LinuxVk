@@ -61,7 +61,7 @@ spv:
 	@make -C shader
 
 # for each object file: that matches %.o: replace with %.cpp
-$(OBJFILES): %.o: %.cpp
+$(OBJFILES): %.o: %.cpp %.h
 	$(CXX) -c -o $@ $< $(CFLAGS)
 
 # for each target: compile in all dependancies as well as all library link flags we need

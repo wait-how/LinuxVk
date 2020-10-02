@@ -10,10 +10,10 @@
 namespace vload {
 	struct vertex {
 		// aligning things is a little less space-efficient, but makes offsets easier.
-		alignas(4) glm::vec3 pos;
-		alignas(4) glm::vec3 normal;
-		alignas(4) glm::vec3 tangent;
-		alignas(4) glm::vec2 uv;
+		alignas(16) glm::vec3 pos;
+		alignas(16) glm::vec3 normal;
+		alignas(16) glm::vec2 uv;
+		alignas(16) glm::vec3 tangent;
 	};
 
 	class mesh {

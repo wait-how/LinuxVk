@@ -24,10 +24,10 @@ namespace cam {
 			skip++;
 		}
 
-		mscale = std::min(glfwGetTime() - prevTime, 0.05);
-		lscale = std::min(glfwGetTime() - prevTime, 0.05);
+		mscale = std::min(glfwGetTime() - prevTime, 0.025);
+		lscale = std::min(glfwGetTime() - prevTime, 0.025);
 
-		// target is 1 away from pos, always.  This makes math easier (hypotenuse = 1)
+		// target is 1 away from pos to make math easier
 
 		float xoff = x - prevX;
 		float yoff = prevY - y;
@@ -35,6 +35,7 @@ namespace cam {
 		prevX = x;
 		prevY = y;
 
+		// this flip makes movement come out correct, and is needed even if we flip elsewhere
 		float swapCoords = (vulkanCoords) ? -1.0f : 1.0f;
 
 		if (mouseLook) {
@@ -43,7 +44,6 @@ namespace cam {
 		}
 
 		// if using a laptop, sometimes the mouse can be annoying. keyboard versions of the same thing are set here.
-		// (mouse still works while using the keyboard!)
 		if (keyboardLook) {
 			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
 				hangle -= 20.0f * lscale * swapCoords;
