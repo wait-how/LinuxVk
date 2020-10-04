@@ -51,7 +51,9 @@ private:
 		glfwSetFramebufferSizeCallback(w, windowSizeCallback);
 	}
 
-	const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
+	const std::vector<const char*> validationLayers = {
+		"VK_LAYER_KHRONOS_validation",
+	};
 	
 	void checkValidation() {
 		if (verify) {
@@ -85,6 +87,7 @@ private:
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwNumExtensions);
 		if (verify) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			extensions.push_back(VK_EXT_VALIDATION_FEATURES_EXTENSION_NAME);
 		}
 
 		return extensions;
@@ -98,7 +101,7 @@ private:
 		const VkDebugUtilsMessengerCallbackDataEXT* data,
 		void* userData) {
 		
-		cerr << " ~ " << data->pMessage << endl;
+		cerr << "\t" << data->pMessage << endl;
 		return VK_FALSE; // don't abort on error in callback
 	}
 	
@@ -163,14 +166,26 @@ private:
 		createInfo.pApplicationInfo = &appInfo;
 		
 		VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{}; // outside if statement to avoid getting deallocated early
+
+		// enable sync validation to detect missing/incorrect barriers between operations
+		VkValidationFeaturesEXT validFeatures{};
+		VkValidationFeatureEnableEXT feats[] = {
+			VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+		};
+
 		if (verify) {
 			createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 			createInfo.ppEnabledLayerNames = validationLayers.data();
 			
 			populateDebugMessenger(debugCreateInfo);
 
+			validFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
+			validFeatures.enabledValidationFeatureCount = 1;
+			validFeatures.pEnabledValidationFeatures = feats;
+
 			// passing debugCreateInfo here so that our debug utils handle errors in createInstance or destroyInstance
-			createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT*) &debugCreateInfo;
+			createInfo.pNext = &debugCreateInfo;
+			debugCreateInfo.pNext = &validFeatures;
 		}
 		
 		auto extensions = getExtensions();
@@ -502,9 +517,9 @@ private:
 		for (auto format : formats) {
 			VkFormatProperties formatProps;
 			vkGetPhysicalDeviceFormatProperties(pdev, format, &formatProps);
-			if (tiling == VK_IMAGE_TILING_LINEAR && (formatProps.linearTilingFeatures & features)) {
+			if (tiling == VK_IMAGE_TILING_LINEAR && (formatProps.linearTilingFeatures & features) == features) {
 				return format;
-			} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (formatProps.optimalTilingFeatures & features)) {
+			} else if (tiling == VK_IMAGE_TILING_OPTIMAL && (formatProps.optimalTilingFeatures & features) == features) {
 				return format;
 			}
 		}
@@ -524,7 +539,7 @@ private:
 		attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // layout of image before render pass - don't care since we'll be clearing it anyways
 		attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR; // layout of image at end of render pass
 
-		std::vector<VkFormat> formatList = {
+		const std::vector<VkFormat> formatList = {
 			VK_FORMAT_D24_UNORM_S8_UINT,
 			VK_FORMAT_X8_D24_UNORM_PACK32, // no stencil
 		};
@@ -538,7 +553,7 @@ private:
 		attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // don't care about this since we clear anyways, like above
+		attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // this needs to be in the proper format before we start rendering, otherwise clearing and a layout transition happen at the same time
 		attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		VkAttachmentReference colorAttachmentRef{};
@@ -555,16 +570,16 @@ private:
 		sub.pColorAttachments = &colorAttachmentRef;
 		sub.pDepthStencilAttachment = &depthAttachmentRef;
 
-		VkSubpassDependency sdep{}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
+		VkSubpassDependency deps[1] = {}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
 		// solution here is to delay writing to the framebuffer until the image we need is acquired (and the transition has taken place)
-		sdep.srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
-		sdep.dstSubpass = 0; // index into pSubpasses
+		deps[0].srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
+		deps[0].dstSubpass = 0; // index into pSubpasses
 
-		sdep.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // stage we're waiting on
-		sdep.srcAccessMask = 0; // what we're using that input for
+		deps[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // stage we're waiting on
+		deps[0].srcAccessMask = 0; // what we're using that input for
 
-		sdep.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // stage we write to
-		sdep.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // what we're using that output for
+		deps[0].dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // stage we write to
+		deps[0].dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT; // what we're using that output for
 
 		VkRenderPassCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -573,7 +588,7 @@ private:
 		createInfo.subpassCount = 1;
 		createInfo.pSubpasses = &sub;
 		createInfo.dependencyCount = 1;
-		createInfo.pDependencies = &sdep;
+		createInfo.pDependencies = deps;
 
 		if (vkCreateRenderPass(dev, &createInfo, nullptr, &renderPass) != VK_SUCCESS) {
 			throw std::runtime_error("cannot create render pass!");
@@ -997,14 +1012,21 @@ private:
 		vkFreeCommandBuffers(dev, cp, 1, &buf);
 	}
 
-	void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldl, VkImageLayout newl) {
+	void transitionImageLayout(VkImage image, VkImageLayout oldl, VkImageLayout newl) {
 		VkCommandBuffer buf = beginSingleCommand();
 
 		VkImageSubresourceRange range{};
-		range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		range.baseMipLevel = 0;
+
+		if (newl == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+			range.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+			if (depthFormat == VK_FORMAT_D24_UNORM_S8_UINT || depthFormat == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+				range.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+			}
+		} else {
+			range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		}
+
 		range.levelCount = 1;
-		range.baseArrayLayer = 0;
 		range.layerCount = 1;
 
 		VkImageMemoryBarrier barrier{};
@@ -1031,8 +1053,14 @@ private:
 
 			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+		} else if (oldl == VK_IMAGE_LAYOUT_UNDEFINED && newl == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+			srcStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			dstStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		} else {
-			throw std::invalid_argument("illegal stage combination!");
+			throw std::invalid_argument("unsupported stage combination!");
 		}
 
 		vkCmdPipelineBarrier(buf, srcStage, dstStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
@@ -1195,9 +1223,9 @@ private:
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			texImage, texMem);
 		
-		transitionImageLayout(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+		transitionImageLayout(texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 		copyBufferToImage(sbuf, texImage, uint32_t(width), uint32_t(height));
-		transitionImageLayout(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+		transitionImageLayout(texImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 		vkFreeMemory(dev, smem, nullptr);
 		vkDestroyBuffer(dev, sbuf, nullptr);
@@ -1238,8 +1266,10 @@ private:
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
 			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			depthImage, depthMemory);
-
-		depthView = createImageView(depthImage, VK_FORMAT_D24_UNORM_S8_UINT, VK_IMAGE_ASPECT_DEPTH_BIT);
+		
+		transitionImageLayout(depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+		
+		depthView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
 	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -1281,6 +1311,7 @@ private:
 			rBeginInfo.pClearValues = attachClearValues;
 			
 			// actually render stuff!
+			// commands here respect submission order, but draw command pipeline stages can go out of order
 			vkCmdBeginRenderPass(commandBuffers[i], &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 			vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, gpipe);
 
@@ -1350,6 +1381,7 @@ private:
 		createSwapViews();
 		createRenderPass();
 		createGraphicsPipeline();
+		createDepthImage();
 		createFramebuffers();
 		createUniformBuffers();
 		createDescriptorPool();
@@ -1375,9 +1407,9 @@ private:
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
+		createCommandPool();
 		createDepthImage();
 		createFramebuffers();
-		createCommandPool();
 		vload::vloader v("models/cube.obj");
 		createVertexBuffer(v.meshList[0].verts);
 		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
@@ -1402,13 +1434,11 @@ private:
 
 		ubo u1;
 		// TODO: the .obj format assumes that +Y is up, not down.
+		// currently my projection matrix is upside-down, so I think they cancel out!
 		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.model = glm::rotate(u1.model, time * glm::radians(25.0f), glm::vec3(0.0, 0.0, 1.0));
 		u1.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
 		u1.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
-		
-		// this line is required by the tutorial but breaks stuff?
-		//u1.proj[1][1] *= -1.0;
 
 		void* data;
 		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
@@ -1498,10 +1528,11 @@ private:
 			drawFrame();
 			
 			if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-				vkDeviceWaitIdle(dev);
 				glfwSetWindowShouldClose(w, GLFW_TRUE);
 			}
 		}
+
+		vkDeviceWaitIdle(dev);
 	}
 	
 	void cleanupSwapChain() {
@@ -1513,6 +1544,10 @@ private:
 		}
 
 		vkFreeCommandBuffers(dev, cp, commandBuffers.size(), commandBuffers.data());
+
+		vkDestroyImageView(dev, depthView, nullptr);
+		vkFreeMemory(dev, depthMemory, nullptr);
+		vkDestroyImage(dev, depthImage, nullptr);
 
 		for (size_t i = 0; i < swapImages.size(); i++) {
 			vkFreeMemory(dev, uniformMemories[i], nullptr);
@@ -1543,10 +1578,6 @@ private:
 		vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
 
 		vkDestroyCommandPool(dev, cp, nullptr);
-
-		vkDestroyImageView(dev, depthView, nullptr);
-		vkFreeMemory(dev, depthMemory, nullptr);
-		vkDestroyImage(dev, depthImage, nullptr);
 
 		vkDestroySampler(dev, texSamp, nullptr);
 		vkDestroyImageView(dev, texView, nullptr);
