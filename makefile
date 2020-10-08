@@ -23,35 +23,30 @@ OBJFILES := $(SRCFILES:cpp=o)
 LDFLAGS := -fuse-ld=lld
 
 # specify a single target name here
-TARGETS := slow debug release small lineprofile profile
+TARGETS := debug bench small lineprofile timeprofile
 MAINS := $(addsuffix .o, $(TARGETS) )
 
 # phony targets don't create a file as output
 .PHONY: top clean runprofile
 
-# maximum information, for serious debugging
-slow: CFLAGS += -g$(DB) -O0
+# default build
+top: debug
 
-# important warnings and some runtime stack-checking
-debug: CFLAGS += -Wextra -D_FORTIFY_SOURCE=2 -g$(DB) -Og
+# important warnings and full debug info, -Og doubles compile time on clang
+debug: CFLAGS += -Wextra -g$(DB)
 
 # fastest executable on my machine
-release: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin
-release: LDFLAGS += -flto=thin
+bench: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin
+bench: LDFLAGS += -flto=thin
 
 # smaller executable
 small: CFLAGS += -Os -s
 
-# line-based profiling run
 lineprofile: CFLAGS += -Og -fprofile-instr-generate -fcoverage-mapping
 lineprofile: LDFLAGS += -fprofile-instr-generate
 
-# time-based profiling run
-profile: CFLAGS += -pg
-profile: LDFLAGS += -pg
-
-# debug build by default
-top: debug
+timeprofile: CFLAGS += -pg
+timeprofile: LDFLAGS += -pg
 
 # clean out .o and executable files
 clean:
@@ -76,7 +71,7 @@ getlineprofile: lineprofile
 	@llvm-cov show ./lineprofile -instr-profile=default.profdata -show-line-counts-or-regions > default.proftxt
 	@less default.proftxt
 
-getprofile: profile
+gettimeprofile: timeprofile
 	@echo NOTE: executable has to exit for results to be generated.
 	@./profile
 	@gprof profile gmon.out -p > times.txt
