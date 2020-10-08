@@ -1269,7 +1269,7 @@ private:
 		
 		transitionImageLayout(depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 		
-		depthView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
+		depthView = createImageView(depthImage, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT);
 	}
 	
 	std::vector<VkCommandBuffer> commandBuffers;
@@ -1304,7 +1304,7 @@ private:
 			rBeginInfo.renderArea.extent = swapExtent;
 
 			VkClearValue attachClearValues[2];
-			attachClearValues[0].color = { 0.0, 0.0, 0.0, 1.0 };
+			attachClearValues[0].color = { 0.15, 0.15, 0.15, 1.0 };
 			attachClearValues[1].depthStencil = {1.0, 0};
 			
 			rBeginInfo.clearValueCount = 2;
@@ -1410,7 +1410,7 @@ private:
 		createCommandPool();
 		createDepthImage();
 		createFramebuffers();
-		vload::vloader v("models/cube.obj");
+		vload::vloader v("models/donut.obj");
 		createVertexBuffer(v.meshList[0].verts);
 		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
 		texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
