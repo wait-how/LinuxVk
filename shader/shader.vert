@@ -1,4 +1,6 @@
 #version 450
+// allow use of specific sizes for variables (float16_t, i8vec4, etc.)
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
 
 // for vulkan:
 // NDCs are (-1, -1) in top left to (1, 1) in bottom right

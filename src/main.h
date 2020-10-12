@@ -12,6 +12,7 @@
 
 #include <cstring> // for strcmp
 #include <cstdint> // for UINT32_MAX
+#include <cmath>
 
 #include "glm_wrapper.h"
 #include "camera.h"

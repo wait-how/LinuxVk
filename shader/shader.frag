@@ -1,4 +1,5 @@
 #version 450
+#extension GL_EXT_shader_explicit_arithmetic_types: enable
 
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 n;
