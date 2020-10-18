@@ -73,7 +73,7 @@ private:
 					throw std::runtime_error("can't find all validation layers!");
 				}
 			}
-			cout << "found all validation layers" << endl;
+			cout << "found validation layers" << endl;
 		}
 	}
 
@@ -103,23 +103,6 @@ private:
 		
 		cerr << "\t" << data->pMessage << endl;
 		return VK_FALSE; // don't abort on error in callback
-	}
-	
-	// create extension methods for creating and destroying debug messengers ourselves since extensions aren't loaded by default
-	VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger) {
-		auto f = (PFN_vkCreateDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-		if (f) {
-			return f(instance, pCreateInfo, pAllocator, pDebugMessenger);
-		} else {
-			return VK_ERROR_EXTENSION_NOT_PRESENT;
-		}
-	}
-
-	void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-		auto f = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-		if (f) {
-			f(instance, debugMessenger, pAllocator);
-		}
 	}
 
 	VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
@@ -210,9 +193,9 @@ private:
 	
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
 
-	// want extended dynamic state to control wireframes
 	const std::vector<const char*> requiredExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME,
 	};
 
 	// extension support is device-specific, so check for it here
@@ -283,7 +266,7 @@ private:
 			throw std::runtime_error("no usable graphics device found!");
 		}
 
-		const std::string shortNames[3] = {"nvidia", "intel", "unknown"};
+		const std::string shortNames[3] = {"nvidia", "intel", "default"};
 		cout << "using " << shortNames[m] << " gpu" << endl;
 	}
 
@@ -399,15 +382,25 @@ private:
 		queueInfo.queueCount = 1;
 		float pri = 1.0f;
 		queueInfo.pQueuePriorities = &pri; // highest priority
+
 		
-		VkPhysicalDeviceFeatures feat{};
-		feat.samplerAnisotropy = VK_TRUE;
-		
+		VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR execProp{};
+		execProp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
+		execProp.pipelineExecutableInfo = VK_TRUE;
+
+		// this structure has a bunch of recent extension features, so use this instead of pEnabledFeatures
+		VkPhysicalDeviceFeatures2 feat2{};
+		feat2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		feat2.pNext = &execProp;
+		feat2.features = {}; // set everything not used to zero
+		feat2.features.samplerAnisotropy = VK_TRUE;
+
 		VkDeviceCreateInfo createInfo{};
 		createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		createInfo.pNext = &feat2;
 		createInfo.pQueueCreateInfos = &queueInfo;
 		createInfo.queueCreateInfoCount = 1;
-		createInfo.pEnabledFeatures = &feat;
+		createInfo.pEnabledFeatures = nullptr;
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
 		createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 		
@@ -866,6 +859,7 @@ private:
 
 		VkGraphicsPipelineCreateInfo pipeCreateInfo{};
 		pipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+		pipeCreateInfo.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
 		pipeCreateInfo.stageCount = 2;
 		pipeCreateInfo.pStages = shaders;
 		pipeCreateInfo.pVertexInputState = &vinCreateInfo;
@@ -885,8 +879,73 @@ private:
 			throw std::runtime_error("cannot create graphics pipeline!");
 		}
 
+		printShaderStats();
+		printed = true;
+
 		vkDestroyShaderModule(dev, vmod, nullptr); // we can destroy shader modules once the graphics pipeline is created.
 		vkDestroyShaderModule(dev, fmod, nullptr);
+	}
+
+	bool printed = false;
+	void printShaderStats() {
+		if (printed) {
+			return;
+		}
+
+		VkPipelineInfoKHR pipeInfo{};
+		pipeInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
+		pipeInfo.pipeline = gpipe;
+
+		unsigned int numShaders;
+		if (GetPipelineExecutablePropertiesKHR(dev, &pipeInfo, &numShaders, nullptr) != VK_SUCCESS) {
+			throw std::runtime_error("cannot get shader statistics!");
+		}
+		std::vector<VkPipelineExecutablePropertiesKHR> shaderProps(numShaders);
+		for (auto& prop : shaderProps) {
+			prop.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR;
+		}
+		GetPipelineExecutablePropertiesKHR(dev, &pipeInfo, &numShaders, shaderProps.data());
+		
+		VkPipelineExecutableInfoKHR shaderInfo{};
+		shaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
+		shaderInfo.pipeline = gpipe;
+		
+		unsigned int numStats;
+		GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, nullptr);
+		std::vector<VkPipelineExecutableStatisticKHR> shaderStats(numStats);
+		for (auto& stat : shaderStats) {
+			stat.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_STATISTIC_KHR;
+		}
+		
+		for (size_t i = 0; i < numShaders; i++) {
+			auto r = GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, shaderStats.data());
+
+			cout << shaderProps[i].name << " statistics:\n";
+			
+			for (auto stat : shaderStats) {
+				cout << "  ~ " << stat.name << " = ";
+				switch (stat.format) {
+					case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR:
+						cout << stat.value.b32;
+						break;
+					case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_INT64_KHR:
+						cout << stat.value.i64;
+						break;
+					case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR:
+						cout << stat.value.u64;
+						break;
+					case VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_FLOAT64_KHR:
+						cout << stat.value.f64;
+						break;
+				}
+				cout << "\n";
+			}
+
+			cout << "  ~ Subgroup Size: " << shaderProps[i].subgroupSize << "\n";
+			shaderInfo.executableIndex++;
+		}
+
+		printed = true;
 	}
 
 	std::vector<VkFramebuffer> swapFramebuffers; // ties render attachments to image views in the swapchain
@@ -1228,7 +1287,6 @@ private:
 		
 		transitionImageLayout(texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texMipLevels);
 		copyBufferToImage(sbuf, texImage, uint32_t(width), uint32_t(height));
-		//transitionImageLayout(texImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, texMipLevels);
 
 		vkFreeMemory(dev, smem, nullptr);
 		vkDestroyBuffer(dev, sbuf, nullptr);
@@ -1270,6 +1328,7 @@ private:
 
 		// turn each mip level from a dest into a source for the one below it
 		for (size_t level = 1; level < levels; level++) {
+			// move prev dst -> src
 			mipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 			mipBarrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			mipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -1279,6 +1338,7 @@ private:
 				VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
 				0, 0, nullptr, 0, nullptr, 1, &mipBarrier);
 			
+			// blit src -> dst
 			blit.srcSubresource.mipLevel = level - 1;
 			blit.dstSubresource.mipLevel = level;
 			blit.srcOffsets[1].x = (width > 1) ? width : 1;
@@ -1290,6 +1350,7 @@ private:
 			vkCmdBlitImage(b, image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
 			1, &blit, VK_FILTER_LINEAR);
 
+			// src -> shader
 			mipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
 			mipBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 			mipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -1302,7 +1363,7 @@ private:
 			height /= 2;
 		}
 
-		// transfer the last mip level since it doesn't get touched by the loop
+		// last dst -> shader
 		mipBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 		mipBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 		mipBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;

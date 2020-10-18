@@ -15,5 +15,6 @@
 #include <cmath>
 
 #include "glm_wrapper.h"
+#include "extensions.h"
 #include "camera.h"
 #include "vloader.h"

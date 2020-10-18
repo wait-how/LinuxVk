@@ -1,4 +1,4 @@
-#version 450
+#version 460
 // allow use of specific sizes for variables (float16_t, i8vec4, etc.)
 #extension GL_EXT_shader_explicit_arithmetic_types: enable
 
