@@ -27,7 +27,7 @@ namespace vload {
 
 	class vloader {
 	public:
-		vloader(std::string path);
+		vloader(std::string_view path);
 		std::vector<mesh> meshList;
 	private:
 		void processNode(aiNode* node, const aiScene* scene);

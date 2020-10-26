@@ -9,7 +9,7 @@
 namespace cam {
 	constexpr bool keyboardLook = true;
 	constexpr bool mouseLook = false;
-	constexpr bool vulkanCoords = true;
+	constexpr bool flipY = false; // flipping viewport, not needed here
 
 	class camera {
 	public:

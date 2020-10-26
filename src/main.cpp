@@ -24,8 +24,8 @@ private:
 	constexpr static unsigned int screenWidth = 3840;
 	constexpr static unsigned int screenHeight = 2160;
 
-	const bool verbose = false;
-	const bool verify = true;
+	constexpr static bool verbose = false;
+	constexpr static bool verify = true;
 	
 	GLFWwindow* w;
 	
@@ -80,10 +80,9 @@ private:
 	const std::vector<const char*> getExtensions() {
 		// glfw helper function that specifies the extension needed to draw stuff
 		uint32_t glfwNumExtensions = 0;
-		const char** glfwExtensions;
-		glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwNumExtensions);
+		const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwNumExtensions);
 		
-		// TODO: is this a range constructor?
+		// default insertion constructor
 		std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwNumExtensions);
 		if (verify) {
 			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -205,7 +204,7 @@ private:
 		std::vector<VkExtensionProperties> deviceExtensions(numExtensions);
 		vkEnumerateDeviceExtensionProperties(pdev, nullptr, &numExtensions, deviceExtensions.data());
 		
-		std::set<std::string> tempExtensionList(requiredExtensions.begin(), requiredExtensions.end());
+		std::set<std::string_view> tempExtensionList(requiredExtensions.begin(), requiredExtensions.end());
 		
 		// erase any extensions found
 		for (const auto& extension : deviceExtensions) {
@@ -225,7 +224,7 @@ private:
 		vkGetPhysicalDeviceFeatures(pd, &dfeat);
 
 		const std::string_view name = std::string_view(dprop.deviceName);
-		cout << "found " << name << " running vulkan version " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
+		cout << "found " << name << " running " << VK_VERSION_MAJOR(dprop.apiVersion) << "." << VK_VERSION_MINOR(dprop.apiVersion) << "." << VK_VERSION_PATCH(dprop.apiVersion) << endl;
 		
 		VkBool32 goodEnough;
 		switch (m) {
@@ -263,10 +262,10 @@ private:
 		}
 
 		if (pdev == VK_NULL_HANDLE) {
-			throw std::runtime_error("no usable graphics device found!");
+			throw std::runtime_error("no usable gpu found!");
 		}
 
-		const std::string shortNames[3] = {"nvidia", "intel", "default"};
+		const std::string_view shortNames[3] = {"nvidia", "intel", "default"};
 		cout << "using " << shortNames[m] << " gpu" << endl;
 	}
 
@@ -403,9 +402,7 @@ private:
 		createInfo.pEnabledFeatures = nullptr;
 		createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
 		createInfo.ppEnabledExtensionNames = requiredExtensions.data();
-		
-		// enabledLayerCount and ppEnabledLayerNames are deprecated
-		
+				
 		if (vkCreateDevice(pdev, &createInfo, nullptr, &dev)) {
 			throw std::runtime_error("cannot create virtual device!");
 		}
@@ -434,7 +431,7 @@ private:
 
 		sInfo.surface = surf;
 		sInfo.minImageCount = numImages;
-		sInfo.imageFormat = f.format;
+		sInfo.imageFormat = f.format; // swapchain creates images for us
 		sInfo.imageExtent = e;
 		sInfo.imageColorSpace = f.colorSpace;
 		sInfo.imageArrayLayers = 1; // no stereoscopic viewing rn
@@ -544,7 +541,8 @@ private:
 		attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
 		attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // this needs to be in the proper format before we start rendering, otherwise clearing and a layout transition happen at the same time
+		// initialLayout needs to be set before we start rendering, otherwise clearing and a layout transition from undefined -> depth stencil optimal happen at the same time
+		attachments[1].initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		VkAttachmentReference colorAttachmentRef{};
@@ -561,7 +559,7 @@ private:
 		sub.pColorAttachments = &colorAttachmentRef;
 		sub.pDepthStencilAttachment = &depthAttachmentRef;
 
-		VkSubpassDependency deps[1] = {}; // there's a dependency between reading an image in and writing to it due to where imageAvailSems waits
+		VkSubpassDependency deps[1] = {}; // there's a WAW dependency between writing images due to where imageAvailSems waits
 		// solution here is to delay writing to the framebuffer until the image we need is acquired (and the transition has taken place)
 		deps[0].srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
 		deps[0].dstSubpass = 0; // index into pSubpasses
@@ -712,7 +710,7 @@ private:
 		size_t len = static_cast<size_t>(file.tellg());
 		file.seekg(0);
 		
-		std::vector<char> contents(len); // using vector of char because spir-v isn't utf-8
+		std::vector<char> contents(len); // using vector of char because spir-v isn't a string
 		file.read(contents.data(), len);
 		
 		file.close();
@@ -787,10 +785,11 @@ private:
 		inAsmCreateInfo.primitiveRestartEnable = VK_FALSE;
 
 		VkViewport viewport{};
-		viewport.x = 0;
-		viewport.y = 0;
+		viewport.x = 0.0f;
+		viewport.y = swapExtent.height;
 		viewport.width = swapExtent.width;
-		viewport.height = swapExtent.height;
+		// Vulkan says -Y is up, not down, flip so we're compatible with OpenGL code and obj models
+		viewport.height = -1.0f * swapExtent.height;
 		viewport.minDepth = 0.0f;
 		viewport.maxDepth = 1.0f;
 
@@ -811,7 +810,7 @@ private:
 		rasterCreateInfo.rasterizerDiscardEnable = VK_FALSE; // disables rasterization if true
 		rasterCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
 		rasterCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-		rasterCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
+		rasterCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // flip cull order due to inverting y in rasterizer
 		rasterCreateInfo.depthBiasEnable = VK_FALSE;
 		rasterCreateInfo.lineWidth = 1.0f;
 
@@ -847,7 +846,7 @@ private:
 		dynCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
 		dynCreateInfo.dynamicStateCount = 0;
 		dynCreateInfo.pDynamicStates = dynamStates;
-		
+
 		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // for descriptor sets
 		pipeLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 		pipeLayoutCreateInfo.setLayoutCount = 1;
@@ -880,7 +879,7 @@ private:
 		}
 
 		printShaderStats();
-		printed = true;
+		printed = true; // prevent stats from being printed again if we recreate the pipeline
 
 		vkDestroyShaderModule(dev, vmod, nullptr); // we can destroy shader modules once the graphics pipeline is created.
 		vkDestroyShaderModule(dev, fmod, nullptr);
@@ -918,7 +917,7 @@ private:
 		}
 		
 		for (size_t i = 0; i < numShaders; i++) {
-			auto r = GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, shaderStats.data());
+			GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, shaderStats.data());
 
 			cout << shaderProps[i].name << " statistics:\n";
 			
@@ -1249,13 +1248,11 @@ private:
 	VkDeviceMemory texMem = VK_NULL_HANDLE;
 	unsigned int texMipLevels;
 
-	void createTextureImage(std::string path) {
+	void createTextureImage(std::string_view path) {
 		int width, height, chans;
 		unsigned char *data = stbi_load(path.data(), &width, &height, &chans, STBI_rgb_alpha);
 		if (!data) {
 			throw std::runtime_error("cannot load texture!");
-		} else {
-			cout << "loaded texture " << path << endl;
 		}
 
 		texMipLevels = floor(log2(std::max(width, height))) + 1;
@@ -1466,7 +1463,6 @@ private:
 			vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, buffers, offsets);
 			vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
 			vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &dSet[i], 0, nullptr);
-			//vkCmdDraw(commandBuffers[i], static_cast<uint32_t>(verts.size()), 1, 0, 0);
 			vkCmdDrawIndexed(commandBuffers[i], numIndices, 1, 0, 0, 0);
 			vkCmdEndRenderPass(commandBuffers[i]);
 			
@@ -1547,23 +1543,35 @@ private:
 		createSurface();
 		pickPhysicalDevice(nvidia);
 		createLogicalDevice();
+		
 		createSwapChain();
 		createSwapViews();
+		
 		createRenderPass();
 		createDescriptorSetLayout();
 		createGraphicsPipeline();
+		
 		createCommandPool();
 		createDepthImage();
 		createFramebuffers();
-		vload::vloader v("models/donut.obj");
+		
+		std::string_view obj_path = "models/teapot.obj";
+		vload::vloader v(obj_path);
+		cout << "loaded model " << obj_path << endl;
+		
 		createVertexBuffer(v.meshList[0].verts);
-		createTextureImage("textures/grass/grass02 diffuse 1k.jpg");
+		createIndexBuffer(v.meshList[0].indices);
+
+		std::string_view grass_path = "textures/grass/grass02 diffuse 1k.jpg";
+		createTextureImage(grass_path);
+		cout << "loaded texture " << grass_path << endl;
 		texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB, texMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
 		createSampler();
-		createIndexBuffer(v.meshList[0].indices);
+		
 		numIndices = v.meshList[0].indices.size();
 		createUniformBuffers();
 		createDescriptorPool();
+		
 		allocDescriptorSets();
 		allocCommandBuffers(numIndices);
 		createSyncs();
@@ -1579,17 +1587,19 @@ private:
 
 		time = 0;
 
-		ubo u1;
-		// TODO: the .obj format assumes that +Y is up, not down.
-		// currently my projection matrix is upside-down, so I think they cancel out!
-		u1.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-		u1.model = glm::rotate(u1.model, time * glm::radians(25.0f), glm::vec3(0.0, 0.0, 1.0));
-		u1.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
-		u1.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
+		// TODO: flip Y axis on .obj models, since the format assumes +Y is up.
+
+		ubo u;
+		u.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		u.model = glm::rotate(u.model, time * glm::radians(25.0f), glm::vec3(0.0, 0.0, 1.0));
+
+		// camera flips Y automatically
+		u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
+		u.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 
 		void* data;
 		vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
-		memcpy(data, &u1, sizeof(ubo));
+		memcpy(data, &u, sizeof(ubo));
 		vkUnmapMemory(dev, uniformMemories[imageIndex]);
 	}
 	
@@ -1663,7 +1673,6 @@ private:
 		} else if (r != VK_SUCCESS && r != VK_SUBOPTIMAL_KHR) {
 			throw std::runtime_error("cannot submit to queue!");
 		}
-		// (or vkQueueWaitIdle)
 
 		currFrame = (currFrame + 1) % framesInFlight;
 	}
@@ -1756,7 +1765,7 @@ int main(int argc, char **argv) {
 	try {
 		app.run();
 	} catch (const std::exception& e) {
-		cerr << "Exception thrown: " << e.what() << endl;
+		cerr << e.what() << endl;
 		return 1;
 	}
 	return 0;

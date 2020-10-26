@@ -1,12 +1,9 @@
 #version 460
-// allow use of specific sizes for variables (float16_t, i8vec4, etc.)
-#extension GL_EXT_shader_explicit_arithmetic_types: enable
+// use GL_EXT_shader_explicit_arithmetic_types for float16
 
-// for vulkan:
 // NDCs are (-1, -1) in top left to (1, 1) in bottom right
-// 		(right handed system, -Y is up)
+// right handed system, -Y is up normally but I flipped the rasterizer
 // depth goes from 0 to 1 as object gets farther away
-// gl_VertexIndex instead of gl_VertexID
 
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec3 normal;
@@ -19,17 +16,19 @@ layout (set = 0, binding = 0) uniform uniformBuffer {
 	mat4 proj;
 } ubo;
 
-layout (location = 0) out vec3 pos;
+layout (location = 0) out vec3 p;
 layout (location = 1) out vec3 n;
-layout (location = 2) out vec2 uv;
+layout (location = 2) out vec3 eye;
+layout (location = 3) out vec2 uv;
 
 void main() {
-	gl_Position = ubo.proj * ubo.view * ubo.model * vec4(position, 1.0f);
-	
-	pos = vec3(ubo.model * vec4(position, 1.0f));
 
-	vec4 vn = mat4(mat3(ubo.model)) * vec4(normalize(normal), 1.0f);
-	n = vec3(vn);
+	vec4 p4 = ubo.model * vec4(position, 1.0);
+
+	gl_Position = ubo.proj * ubo.view * p4;
 	
+	p = p4.xyz;
+	n = mat3(ubo.model) * normal;
+	eye = ubo.view[3].xyz;
 	uv = texcoord;
 }

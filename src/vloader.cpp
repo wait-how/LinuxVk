@@ -10,11 +10,11 @@ using std::endl;
 
 namespace vload {
 
-	vloader::vloader(std::string path) : meshList() {
+	vloader::vloader(std::string_view path) : meshList() {
 		Assimp::Importer imp;
 		// make everything triangles, generate normals/tangents if they aren't there, and join identical vertices together.
 		// NOTE: if JoinIdenticalVertices isn't specified, an index buffer isn't required.
-		const aiScene* scene = imp.ReadFile(path, aiProcess_Triangulate 
+		const aiScene* scene = imp.ReadFile(path.data(), aiProcess_Triangulate 
 												| aiProcess_CalcTangentSpace
 												| aiProcess_GenNormals
 												| aiProcess_JoinIdenticalVertices

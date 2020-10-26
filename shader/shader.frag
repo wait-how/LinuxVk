@@ -1,37 +1,47 @@
 #version 460
-#extension GL_EXT_shader_explicit_arithmetic_types: enable
 
-layout (location = 0) in vec3 pos;
+layout (location = 0) in vec3 p;
 layout (location = 1) in vec3 n;
-layout (location = 2) in vec2 uv;
+layout (location = 2) in vec3 eye;
+layout (location = 3) in vec2 uv;
 
 layout (binding = 1) uniform sampler2D tex;
 
-layout (location = 0) out vec4 fColor;
+layout (location = 0) out vec4 fragcolor;
 
-struct light {
-	vec3 pos;
+struct point {
+	vec3 p;
 	vec3 color;
 };
 
-const light l = light(vec3(0.0f, 0.0f, -2.0f), vec3(1.0f));
-
-void main() {
-	
-	vec3 ldir = l.pos - pos;
+vec3 phong(in point l, in vec3 base) {
+	vec3 ldir = l.p - p;
 	
 	float dist = length(ldir);
-	float falloff = 1.0 / dist;
+
+	const vec3 cf = vec3(0.0, 1.0, 0.0);
+	float falloff = cf.x + (cf.y / dist) + (cf.z / (dist * dist));
 	ldir /= dist;
 
-	float diff = clamp(dot(ldir, normalize(n)), 0.0f, 1.0f);
+	vec3 nn = normalize(n);
 
-	vec3 base = vec3(texture(tex, uv));
-	vec3 amb = vec3(0.15f) * base;
-	vec3 final = mix(amb, base, diff);
+	float diff = clamp(dot(ldir, nn), 0.0, 1.0);
 
-	// spec requires eye pos, and I don't want to
-	// encode it in the origin by making everything in eye space
+	vec3 amb = 0.15 * base;
+	vec3 diffc = mix(amb, base * l.color, diff);
 
-	fColor = min(vec4(final * falloff, 1.0f), vec4(1.0f));
+	// TODO: specular lighting
+
+	return diffc * falloff;
+}
+
+void main() {
+
+	const point l = point(vec3(0.0, 2.0, -2.0), vec3(1.0));
+
+	const vec3 base = texture(tex, uv).rgb;
+
+	vec3 lc = phong(l, base);
+
+	fragcolor = vec4(min(lc, vec3(1.0)), 1.0);
 }

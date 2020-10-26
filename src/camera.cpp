@@ -36,7 +36,7 @@ namespace cam {
 		prevY = y;
 
 		// this flip makes movement come out correct, and is needed even if we flip elsewhere
-		float swapCoords = (vulkanCoords) ? -1.0f : 1.0f;
+		float swapCoords = (flipY) ? -1.0f : 1.0f;
 
 		if (mouseLook) {
 			hangle += xoff * lscale;
