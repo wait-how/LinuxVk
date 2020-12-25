@@ -36,7 +36,7 @@ top: debug
 debug: CFLAGS += -Wextra -g$(DB)
 
 # fastest executable on my machine
-bench: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin
+bench: CFLAGS += -Ofast -march=native -mavx2 -ffast-math -flto=thin -D NDEBUG
 bench: LDFLAGS += -flto=thin
 
 # smaller executable

@@ -24,8 +24,10 @@ namespace cam {
 			skip++;
 		}
 
-		mscale = std::min(glfwGetTime() - prevTime, 0.025);
-		lscale = std::min(glfwGetTime() - prevTime, 0.025);
+		mscale = glfwGetTime() - prevTime;
+		lscale = glfwGetTime() - prevTime;
+
+		prevTime = glfwGetTime();
 
 		// target is 1 away from pos to make math easier
 
@@ -46,16 +48,16 @@ namespace cam {
 		// if using a laptop, sometimes the mouse can be annoying. keyboard versions of the same thing are set here.
 		if (keyboardLook) {
 			if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {
-				hangle -= rads(30.0f);
+				hangle -= rads(20.0f);
 			}
 			if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {
-				hangle += rads(30.0f);
+				hangle += rads(20.0f);
 			}
 			if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
-				vangle += rads(30.0f) * swapCoords;
+				vangle += rads(20.0f) * swapCoords;
 			}
 			if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {
-				vangle -= rads(30.0f) * swapCoords;
+				vangle -= rads(20.0f) * swapCoords;
 			}
 		}
 		
