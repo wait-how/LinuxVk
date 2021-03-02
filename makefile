@@ -63,7 +63,7 @@ clean:
 
 # build shaders
 spv:
-	@make -C shader
+	@cd shader && $(MAKE)
 
 # execute a profiling run and print out the results
 getlineprofile: lineprofile

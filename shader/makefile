@@ -1,5 +1,3 @@
-MAKEFLAGS += "-j $(shell nproc)"
-
 CC := glslangValidator
 
 # stages named <name>.vert, <vert>.frag, etc. get
@@ -11,8 +9,10 @@ SPV := vert.spv frag.spv
 
 .PHONY: clean
 
+all: $(SPV)
+
 $(SPV): $(GLSLSRC)
-	$(CC) --target-env vulkan1.2 -t $^
+	@$(CC) --target-env vulkan1.2 -t $^
 
 clean:
 	@rm -f *.spv
