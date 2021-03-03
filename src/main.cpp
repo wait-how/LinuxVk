@@ -34,7 +34,7 @@ void appvk::init() {
 		setupDebugMessenger();
 	}
 	createSurface();
-	pickPhysicalDevice(intel);
+	pickPhysicalDevice(any);
 	createLogicalDevice();
 	
 	createSwapChain();

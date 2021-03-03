@@ -21,7 +21,7 @@ LIB_LDFLAGS := $(shell pkg-config --libs glfw3 assimp glm vulkan)
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 CFLAGS := -Wall -std=c++17 $(LIB_CFLAGS)
-LDFLAGS := -fuse-ld=lld $(LIB_LDFLAGS)
+LDFLAGS := $(LIB_LDFLAGS)
 
 SRCS := $(wildcard src/*.cpp)
 
