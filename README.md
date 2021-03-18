@@ -15,5 +15,6 @@ Runtime deps (listed as arch packages):
  - assimp
  - glm
  - glfw
+ - glslangValidator
 
 While writing things, I noticed that if you use optimus manager and try and run things on the intel GPU while in NVIDIA mode, the app crashes.  This is known behavior and is documented [here](https://github.com/Askannz/optimus-manager/wiki/FAQ,-common-issues,-troubleshooting).

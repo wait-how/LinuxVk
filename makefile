@@ -20,8 +20,8 @@ LIB_LDFLAGS_:=_$(shell_pkg-config_--libs_glfw3_assimp_glm_vulkan)
 #_generate_dependancy_information,_and_stick_it_in_depdir
 DEPFLAGS_=_-MT_$@_-MMD_-MP_-MF_$(DEPDIR)/$*.Td
 
-CFLAGS_:=_-Wall_-std=c++17_$(LIB_CFLAGS)
-LDFLAGS_:=_-fuse-ld=lld_$(LIB_LDFLAGS)
+CFLAGS := -Wall -std=c++17 $(LIB_CFLAGS)
+LDFLAGS := $(LIB_LDFLAGS)
 
 SRCS_:=_$(wildcard_src/*.cpp)
 
