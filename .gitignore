@@ -1,7 +1,8 @@
 debug
-profile
+lineprofile
+timeprofile
 small
-slow
+bench
 .obj
 .dep
 shader/*.spv
