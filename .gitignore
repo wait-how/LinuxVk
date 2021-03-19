@@ -1,8 +1,7 @@
-debug
-lineprofile
-timeprofile
+dbg
+opt
 small
-bench
+check
 .obj
 .dep
 shader/*.spv

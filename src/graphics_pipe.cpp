@@ -1,10 +1,3 @@
-#define STB_IMAGE_IMPLEMENTATION
-// take out decoders we don't use to save space
-#define STBI_ONLY_JPEG
-#define STBI_ONLY_PNG
-#define STBI_NO_FAILURE_STRINGS
-#include "stb_image.h"
-
 #include "main.hpp"
 
 // stores framebuffer config
@@ -331,15 +324,7 @@ appvk::buffer appvk::createIndexBuffer(const std::vector<uint32_t>& indices) {
     return local;
 }
 
-appvk::texture appvk::createTextureImage(std::string_view path, bool flip) {
-    // if the image format considers the origin to be the top left (png), then flip.
-    stbi_set_flip_vertically_on_load_thread(flip);
-
-    int width, height, chans;
-    unsigned char *data = stbi_load(path.data(), &width, &height, &chans, STBI_rgb_alpha);
-    if (!data) {
-        throw std::runtime_error("cannot load texture!");
-    }
+appvk::texture appvk::createTextureImage(int width, int height, const unsigned char* data) {
 
     unsigned int mipLevels = floor(log2(std::max(width, height))) + 1;
     
@@ -353,8 +338,6 @@ appvk::texture appvk::createTextureImage(std::string_view path, bool flip) {
     vkMapMemory(dev, staging.mem, 0, imageSize, 0, &map_data);
     memcpy(map_data, data, imageSize);
     vkUnmapMemory(dev, staging.mem);
-
-    stbi_image_free(data);
 
     // used as a src when blitting to make mipmaps
     tex = {createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, mipLevels, VK_SAMPLE_COUNT_1_BIT,

@@ -1,6 +1,9 @@
 #include "vloader.hpp"
 
 #include "main.hpp"
+#include "iloader.hpp"
+
+#include <thread>
 
 void appvk::recreateSwapChain() {
 	int width, height;
@@ -35,12 +38,20 @@ appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
+	vload::vloader g;
+	constexpr std::string_view vp = "models/teapot.obj";
+	std::thread lv = std::thread([&]() -> void { g.load(vp, true, true); });
+
+	iload::iloader t;
+	constexpr std::string_view tp = "textures/grass/grass02 height 1k.jpg";
+	std::thread lt = std::thread([&]() -> void { t.load(tp, false); });
+
 	createInstance();
 	if (debug) {
 		setupDebugMessenger();
 	}
 	createSurface();
-	pickPhysicalDevice(nvidia);
+	pickPhysicalDevice(any);
 	createLogicalDevice();
 
 	createSwapChain();
@@ -55,25 +66,23 @@ appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
 	createMultisampleImage();
 	createFramebuffers();
 
-	std::string_view grassPath = "models/teapot.obj";
-	vload::vloader g(grassPath, false, false);
-	cout << "loaded model " << grassPath << "\n";
+	createUniformBuffers();
+	createDescriptorPool();
+	allocDescriptorSets(descSet);
+
+	lv.join();
 
 	vert = createVertexBuffer(g.meshList[0].verts);
 	index = createIndexBuffer(g.meshList[0].indices);
-
+	cout << "loaded model " << vp << "\n";
 	numIndices = g.meshList[0].indices.size();
 
-	std::string_view terrainFloor = "textures/grass/grass02 height 1k.jpg";
-	tex = createTextureImage(terrainFloor, false);
-	cout << "loaded texture " << terrainFloor << "\n";
+	lt.join();
+
+	tex = createTextureImage(t.width, t.height, t.data);
 	tex.view = createImageView(tex.im, VK_FORMAT_R8G8B8A8_SRGB, tex.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
 	tex.samp = createSampler(tex.mipLevels);
-
-	createUniformBuffers();
-	createDescriptorPool();
-
-	allocDescriptorSets(descSet);
+	cout << "loaded texture " << tp << "\n";
 
 	allocDescriptorSetTexture(descSet, tex);
 

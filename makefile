@@ -28,7 +28,7 @@ LIB_LDFLAGS := $(shell pkg-config --libs $(LIBS))
 DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
 
 CFLAGS := -Wall -Wextra -std=c++17 $(INCS) $(LIB_CFLAGS)
-LDFLAGS := $(LIB_LDFLAGS)
+LDFLAGS := -lpthread $(LIB_LDFLAGS)
 
 # if any word (delimited by whitespace) of SRCS (excluding suffix) matches the wildcard '%', put it in the object or dep directory
 OBJS := $(patsubst %,$(OBJDIR)/%.o,$(basename $(SRCS)))

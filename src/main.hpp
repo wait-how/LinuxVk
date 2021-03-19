@@ -192,7 +192,7 @@ private:
     buffer createIndexBuffer(const std::vector<uint32_t>& indices);
 
 	texture tex;
-	texture createTextureImage(std::string_view path, bool flip);
+	texture createTextureImage(int width, int height, const uint8_t* data);
 
     VkSampler createSampler(unsigned int mipLevels);
 	void generateMipmaps(VkImage image, VkFormat format, unsigned int width, unsigned int height, unsigned int levels);
