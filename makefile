@@ -1,103 +1,92 @@
-#_make_-d_prints_debug_info
-#_makefile_rules_are_specified_here:_https://www.gnu.org/software/make/manual/html_node/Rule-Syntax.html
+# make -d prints debug info
+# makefile rules are specified here: https://www.gnu.org/software/make/manual/html_node/Rule-Syntax.html
 
-#_use_all_cores_if_possible
-MAKEFLAGS_+=_-j_$(shell_nproc)
+# use all cores if possible
+MAKEFLAGS += -j $(shell nproc)
 
-CXX_:=_clang++
-DB_:=_lldb
+CXX := clang++
+DB := lldb
 
-#_directories_to_search_for_.cpp_or_.h_files
-DIRS_:=_src
+# directories to search for .cpp or .h files
+DIRS := gfx-support src
 
-#_create_object_files_and_dependancy_files_in_hidden_dirs
-OBJDIR_:=_.obj
-DEPDIR_:=_.dep
+# all source files
+SRCS := $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
 
-LIB_CFLAGS_:=_$(shell_pkg-config_--cflags_glfw3_assimp_glm_vulkan)
-LIB_LDFLAGS_:=_$(shell_pkg-config_--libs_glfw3_assimp_glm_vulkan)
+# directories to search for includes (which are all source directories)
+INCS := $(foreach dir,$(DIRS),-I$(dir))
 
-#_generate_dependancy_information,_and_stick_it_in_depdir
-DEPFLAGS_=_-MT_$@_-MMD_-MP_-MF_$(DEPDIR)/$*.Td
+# create object files and dependancy files in hidden dirs
+OBJDIR := .obj
+DEPDIR := .dep
 
-CFLAGS := -Wall -std=c++17 $(LIB_CFLAGS)
+LIBS := glfw3 assimp glm vulkan
+LIB_CFLAGS := $(shell pkg-config --cflags $(LIBS))
+LIB_LDFLAGS := $(shell pkg-config --libs $(LIBS))
+
+# generate dependancy information, and stick it in depdir
+DEPFLAGS = -MT $@ -MMD -MP -MF $(DEPDIR)/$*.Td
+
+CFLAGS := -Wall -Wextra -std=c++17 $(INCS) $(LIB_CFLAGS)
 LDFLAGS := $(LIB_LDFLAGS)
 
-SRCS_:=_$(wildcard_src/*.cpp)
+# if any word (delimited by whitespace) of SRCS (excluding suffix) matches the wildcard '%', put it in the object or dep directory
+OBJS := $(patsubst %,$(OBJDIR)/%.o,$(basename $(SRCS)))
+DEPS := $(patsubst %,$(DEPDIR)/%.d,$(basename $(SRCS)))
 
-#_if_any_word_(delimited_by_whitespace)_of_SRCS_(excluding_suffix)_matches_the_wildcard_'%',_put_it_in_the_object_or_dep_directory
-OBJS_:=_$(patsubst_%,$(OBJDIR)/%.o,$(basename_$(SRCS)))
-DEPS_:=_$(patsubst_%,$(DEPDIR)/%.d,$(basename_$(SRCS)))
+# make hidden subdirectories
+$(shell mkdir -p $(dir $(OBJS)) > /dev/null)
+$(shell mkdir -p $(dir $(DEPS)) > /dev/null)
 
-#_make_hidden_subdirectories
-$(shell_mkdir_-p_$(dir_$(OBJS))_>_/dev/null)
-$(shell_mkdir_-p_$(dir_$(DEPS))_>_/dev/null)
+.PHONY: default clean spv
+BINS := dbg opt small check 
 
-.PHONY:_all_clean_spv_getlineprofile_gettimeprofile
-BINS_:=_debug_bench_small_lineprofile_timeprofile
+default: dbg
 
-#_build_debug_by_default
-all:_debug
+# tuned debug info, basic optimization
+dbg: CFLAGS += -g$(DB) -Og
 
-#_important_warnings,_full_debug_info,_some_optimization
-debug:_CFLAGS_+=_-Wextra_-g$(DB)_-Og
+# check for memory leaks using clang's address sanitizer (much faster than Valgrind!)
+# to get symbols, set ASAN_SYMBOLIZER_PATH.
+check: CFLAGS += -g$(DB) -Og -fsanitize=address -fno-omit-frame-pointer
+check: LDFLAGS += -fsanitize=address
 
-#_fastest_executable_on_my_machine
-bench:_CFLAGS_+=_-Ofast_-march=native_-ffast-math_-flto=thin_-D_NDEBUG
-bench:_LDFLAGS_+=_-flto=thin
+# fastest executable on current machine
+opt: CFLAGS += -Ofast -march=native -ffast-math -flto=thin -DNDEBUG
+opt: LDFLAGS += -flto=thin
 
-#_smaller_executable
-small:_CFLAGS_+=_-Os
+# smallest executable
+small: CFLAGS += -Oz -DNDEBUG
 
-lineprofile:_CFLAGS_+=_-Og_-fprofile-instr-generate_-fcoverage-mapping
-lineprofile:_LDFLAGS_+=_-fprofile-instr-generate
-
-timeprofile:_CFLAGS_+=_-pg
-timeprofile:_LDFLAGS_+=_-pg
-
-#_clean_out_.o_and_executable_files
+# clean out .o and executable files
 clean:
-	@rm_-f_$(BINS)
-	@rm_-rf_.dep_.obj
-	@rm_-f_default.prof*_times.txt_gmon.out
+	@rm -f $(BINS)
+	@rm -rf .dep .obj
+	@rm -f default.prof* times.txt gmon.out
 
-#_build_shaders
+# build shaders
 spv:
-	@cd_shader_&&_$(MAKE)
+	@cd shader && $(MAKE)
 
-#_execute_a_profiling_run_and_print_out_the_results
-getlineprofile:_lineprofile
-	@echo_NOTE:_executable_has_to_exit_for_results_to_be_generated.
-	@./lineprofile
-	@llvm-profdata_merge_-sparse_default.profraw_-o_default.profdata
-	@llvm-cov_show_./lineprofile_-instr-profile=default.profdata_-show-line-counts-or-regions_>_default.proftxt
-	@less_default.proftxt
+# link executable together using object files in OBJDIR
+$(BINS): $(OBJS)
+	@$(CXX) -o $@ $(LDFLAGS) $^
+	@echo linked $@
 
-gettimeprofile:_timeprofile
-	@echo_NOTE:_executable_has_to_exit_for_results_to_be_generated.
-	@./profile
-	@gprof_profile_gmon.out_-p_>_times.txt
-	@less_times.txt
+# if a dep file is available, include it as a dependancy
+# when including the dep file, don't let the timestamp of the file determine if we remake the target since the dep
+# is updated after the target is built
+$(OBJDIR)/%.o: %.cpp
+$(OBJDIR)/%.o: %.cpp | $(DEPDIR)/%.d
+	@$(CXX) -c -o $@ $< $(CFLAGS) $(DEPFLAGS)
+	@mv -f $(DEPDIR)/$*.Td $(DEPDIR)/$*.d
+	@echo built $(notdir $@)
 
-#_link_executable_together_using_object_files_in_OBJDIR
-$(BINS):_$(OBJS)
-	@$(CXX)_-o_$@_$(LDFLAGS)_$^
-	@echo_linked_$@
+# dep files are not deleted if make dies
+.PRECIOUS: $(DEPDIR)/%.d
 
-#_if_a_dep_file_is_available,_include_it_as_a_dependancy
-#_when_including_the_dep_file,_don't_let_the_timestamp_of_the_file_determine_if_we_remake_the_target_since_the_dep
-#_is_updated_after_the_target_is_built
-$(OBJDIR)/%.o:_%.cpp
-$(OBJDIR)/%.o:_%.cpp_|_$(DEPDIR)/%.d
-	@$(CXX)_-c_-o_$@_$<_$(CFLAGS)_$(DEPFLAGS)
-	@mv_-f_$(DEPDIR)/$*.Td_$(DEPDIR)/$*.d
-	@echo_built_$(notdir_$@)
+# empty dep for deps
+$(DEPDIR)/%.d: ;
 
-#_dep_files_are_not_deleted_if_make_dies
-.PRECIOUS:_$(DEPDIR)/%.d
-
-#_empty_dep_for_deps
-$(DEPDIR)/%.d:_;
-
-#_read_.d_files_if_nothing_else_matches,_ok_if_deps_don't_exist...?
--include_$(DEPS)
+# read .d files if nothing else matches, ok if deps don't exist...?
+-include $(DEPS)

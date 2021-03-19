@@ -3,16 +3,18 @@ CC := glslangValidator
 # stages named <name>.vert, <vert>.frag, etc. get
 # converted to vert.spv, frag.spv, etc by glslang
 
-PIPELINE := shader
-GLSLSRC := $(wildcard shader*)
 SPV := vert.spv frag.spv
+BUILD = $(CC) --target-env vulkan1.2 -t $^ -o $@
 
-.PHONY: clean
+.PHONY: clean all
 
 all: $(SPV)
 
-$(SPV): $(GLSLSRC)
-	@$(CC) --target-env vulkan1.2 -t $^
+vert.spv: shader.vert
+	$(BUILD)
+
+frag.spv: shader.frag
+	$(BUILD)
 
 clean:
 	@rm -f *.spv

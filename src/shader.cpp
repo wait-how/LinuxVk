@@ -1,13 +1,14 @@
-#include "extensions.h"
+#include "extensions.hpp"
+#include "main.hpp"
+
 #include <fstream>
+#include <string>
 
-#include "main.h"
-
-std::vector<char> appvk::readFile(const std::string& path) {
-    std::ifstream file(path, std::ios::ate | std::ios::binary);
+std::vector<char> appvk::readFile(std::string_view path) {
+    std::ifstream file(path.data(), std::ios::ate | std::ios::binary);
 
     if (!file) {
-        throw std::runtime_error("cannot open file " + path + "!");
+        throw std::runtime_error(std::string("cannot open file ") + path.data() + "!");
     }
     
     size_t len = static_cast<size_t>(file.tellg());
@@ -41,7 +42,7 @@ void appvk::printShaderStats() {
 
     VkPipelineInfoKHR pipeInfo{};
     pipeInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
-    pipeInfo.pipeline = gpipe;
+    pipeInfo.pipeline = pipe;
 
     unsigned int numShaders;
     if (GetPipelineExecutablePropertiesKHR(dev, &pipeInfo, &numShaders, nullptr) != VK_SUCCESS) {
@@ -55,7 +56,7 @@ void appvk::printShaderStats() {
     
     VkPipelineExecutableInfoKHR shaderInfo{};
     shaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
-    shaderInfo.pipeline = gpipe;
+    shaderInfo.pipeline = pipe;
     
     unsigned int numStats;
     GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, nullptr);

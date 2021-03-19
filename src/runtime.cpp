@@ -1,7 +1,10 @@
 #include <chrono>
 #include <cmath>
+#include <iomanip>
 
-#include "main.h"
+#include "options.hpp"
+
+#include "main.hpp"
 
 void appvk::createSyncs() {
     imageAvailSems.resize(framesInFlight, VK_NULL_HANDLE);
@@ -28,26 +31,18 @@ void appvk::createSyncs() {
 }
 
 void appvk::updateUniformBuffer(uint32_t imageIndex) {
-    using namespace std::chrono;
-    static auto start = high_resolution_clock::now();
-    auto current = high_resolution_clock::now();
-    float time = duration<float, seconds::period>(current - start).count();
+    //using namespace std::chrono;
+    //static auto last = high_resolution_clock::now();
+    //auto current = high_resolution_clock::now();
+    //float time = duration<float, seconds::period>(current - last).count();
 
-    time = 0;
-
-    // TODO: flip Y axis on .obj models, since the format assumes +Y is up.
-
-    ubo u;
-    u.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    u.model = glm::rotate(u.model, time * glm::radians(25.0f), glm::vec3(0.0, 0.0, 1.0));
-
-    // camera flips Y automatically
+    mvp u;
+    u.model = glm::mat4(1.0f);
     u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
     u.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 
     void* data;
-    vkMapMemory(dev, uniformMemories[imageIndex], 0, sizeof(ubo), 0, &data);
-    memcpy(data, &u, sizeof(ubo));
-    vkUnmapMemory(dev, uniformMemories[imageIndex]);
+    vkMapMemory(dev, mvpMemories[imageIndex], 0, sizeof(mvp), 0, &data);
+    memcpy(data, &u, sizeof(mvp));
+    vkUnmapMemory(dev, mvpMemories[imageIndex]);
 }
-

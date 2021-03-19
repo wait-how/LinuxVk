@@ -5,11 +5,11 @@
 #define STBI_NO_FAILURE_STRINGS
 #include "stb_image.h"
 
-#include "main.h"
+#include "main.hpp"
 
 // stores framebuffer config
 void appvk::createRenderPass() {
-    VkAttachmentDescription attachments[3];
+    std::array<VkAttachmentDescription, 3> attachments;
 
     // multisample
     attachments[0].flags = 0;
@@ -66,15 +66,17 @@ void appvk::createRenderPass() {
     resolveAttachmentRef.attachment = 2;
     resolveAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    VkSubpassDescription sub{};
-    sub.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    sub.colorAttachmentCount = 1; // color attachments are FS outputs, can also specify input / depth attachments, etc.
-    sub.pColorAttachments = &colorAttachmentRef;
-    sub.pResolveAttachments = &resolveAttachmentRef;
-    sub.pDepthStencilAttachment = &depthAttachmentRef;
+    std::array<VkSubpassDescription, 1> subs = {};
+    subs[0].pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subs[0].colorAttachmentCount = 1; // color attachments are FS outputs, can also specify input / depth attachments, etc.
+    subs[0].pColorAttachments = &colorAttachmentRef;
+    subs[0].pResolveAttachments = &resolveAttachmentRef;
+    subs[0].pDepthStencilAttachment = &depthAttachmentRef;
 
-    VkSubpassDependency deps[1] = {}; // there's a WAW dependency between writing images due to where imageAvailSems waits
+    std::array<VkSubpassDependency, 1> deps = {};
+    // there's a WAW dependency between writing images due to where imageAvailSems waits
     // solution here is to delay writing to the framebuffer until the image we need is acquired (and the transition has taken place)
+    
     deps[0].srcSubpass = VK_SUBPASS_EXTERNAL; // implicit subpass at start of render pass
     deps[0].srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT; // stage we're waiting on
     deps[0].srcAccessMask = 0; // what we're using that input for
@@ -85,12 +87,12 @@ void appvk::createRenderPass() {
 
     VkRenderPassCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    createInfo.attachmentCount = 3;
-    createInfo.pAttachments = attachments;
-    createInfo.subpassCount = 1;
-    createInfo.pSubpasses = &sub;
-    createInfo.dependencyCount = 1;
-    createInfo.pDependencies = deps;
+    createInfo.attachmentCount = attachments.size();
+    createInfo.pAttachments = attachments.data();
+    createInfo.subpassCount = subs.size();
+    createInfo.pSubpasses = subs.data();
+    createInfo.dependencyCount = deps.size();
+    createInfo.pDependencies = deps.data();
 
     if (vkCreateRenderPass(dev, &createInfo, nullptr, &renderPass) != VK_SUCCESS) {
         throw std::runtime_error("cannot create render pass!");
@@ -104,7 +106,7 @@ void appvk::createGraphicsPipeline() {
     VkShaderModule vmod = createShaderModule(vertspv);
     VkShaderModule fmod = createShaderModule(fragspv);
 
-    VkPipelineShaderStageCreateInfo shaders[2] = {};
+    std::array<VkPipelineShaderStageCreateInfo, 2> shaders = {};
     
     shaders[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaders[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
@@ -118,11 +120,11 @@ void appvk::createGraphicsPipeline() {
     
     VkVertexInputBindingDescription bindDesc;
     bindDesc.binding = 0;
-    bindDesc.stride = sizeof(vload::vertex);
+    bindDesc.stride = sizeof(vformat::vertex);
     bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    VkVertexInputAttributeDescription attrDesc[4];
-    for (size_t i = 0; i < 4; i++) {
+    std::array<VkVertexInputAttributeDescription, 3> attrDesc;
+    for (size_t i = 0; i < attrDesc.size(); i++) {
         attrDesc[i].location = i;
         attrDesc[i].binding = 0;
         attrDesc[i].offset = 16 * i; // all offsets are rounded up to 16 bytes due to alignas
@@ -131,14 +133,13 @@ void appvk::createGraphicsPipeline() {
     attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     attrDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
-    attrDesc[3].format = VK_FORMAT_R32G32B32_SFLOAT;
     
     VkPipelineVertexInputStateCreateInfo vinCreateInfo{};
     vinCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vinCreateInfo.vertexBindingDescriptionCount = 1;
     vinCreateInfo.pVertexBindingDescriptions = &bindDesc;
-    vinCreateInfo.vertexAttributeDescriptionCount = 4;
-    vinCreateInfo.pVertexAttributeDescriptions = attrDesc;
+    vinCreateInfo.vertexAttributeDescriptionCount = attrDesc.size();
+    vinCreateInfo.pVertexAttributeDescriptions = attrDesc.data();
 
     VkPipelineInputAssemblyStateCreateInfo inAsmCreateInfo{};
     inAsmCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -221,8 +222,9 @@ void appvk::createGraphicsPipeline() {
         pipeCreateInfo.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
     
-    pipeCreateInfo.stageCount = 2;
-    pipeCreateInfo.pStages = shaders;
+    pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
+    pipeCreateInfo.stageCount = shaders.size();
+    pipeCreateInfo.pStages = shaders.data();
     pipeCreateInfo.pVertexInputState = &vinCreateInfo;
     pipeCreateInfo.pInputAssemblyState = &inAsmCreateInfo;
     pipeCreateInfo.pViewportState = &viewCreateInfo;
@@ -234,7 +236,7 @@ void appvk::createGraphicsPipeline() {
     pipeCreateInfo.renderPass = renderPass;
     pipeCreateInfo.subpass = 0;
     
-    if (vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &pipeCreateInfo, nullptr, &gpipe) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &pipeCreateInfo, nullptr, &pipe) != VK_SUCCESS) {
         throw std::runtime_error("cannot create graphics pipeline!");
     }
 
@@ -255,8 +257,8 @@ void appvk::createFramebuffers() {
         // having a single depth buffer with >1 swap image only works if graphics and pres queues are the same.
         // this is due to submissions in a single queue having to respect both submission order and semaphores
         VkImageView attachments[] = {
-            msImageView, // multisampled render image
-            depthView,
+            ms.view, // multisampled render image
+            depth.view,
             swapImageViews[i] // swapchain present image
         };
 
@@ -275,114 +277,120 @@ void appvk::createFramebuffers() {
     }
 }
 
-void appvk::createVertexBuffer(const std::vector<vload::vertex>& verts) {
-    VkDeviceSize bufferSize = verts.size() * sizeof(vload::vertex);
-    createBuffer(verts.size() * sizeof(vload::vertex), 
+appvk::buffer appvk::createVertexBuffer(const std::vector<uint8_t>& verts) {
+    VkDeviceSize bufferSize = verts.size();
+    buffer staging = createBuffer(verts.size(), 
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
-        stagingBuffer, stagingMemory);
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     
-    createBuffer(verts.size() * sizeof(vload::vertex), 
+    buffer local = createBuffer(verts.size(), 
         VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-        vertexBuffer, vertexMemory);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     void *data;
-    vkMapMemory(dev, stagingMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(dev, staging.mem, 0, bufferSize, 0, &data);
     memcpy(data, verts.data(), bufferSize);
-    vkUnmapMemory(dev, stagingMemory);
+    vkUnmapMemory(dev, staging.mem);
 
-    copyBuffer(stagingBuffer, vertexBuffer, bufferSize);
+    copyBuffer(staging.buf, local.buf, bufferSize);
 
-    vkFreeMemory(dev, stagingMemory, nullptr);
-    vkDestroyBuffer(dev, stagingBuffer, nullptr);
+    vkFreeMemory(dev, staging.mem, nullptr);
+    vkDestroyBuffer(dev, staging.buf, nullptr);
+
+    return local;
 }
 
-void appvk::createIndexBuffer(const std::vector<uint32_t>& indices) {
+// wrapper for raw createVertexBuffer that takes a vloader mesh
+appvk::buffer appvk::createVertexBuffer(std::vector<vformat::vertex>& v) {
+    auto bytePtr = reinterpret_cast<uint8_t*>(v.data());
+	std::vector<uint8_t> byteData(bytePtr, bytePtr + v.size() * sizeof(vformat::vertex));
+
+    return createVertexBuffer(byteData);
+}
+
+appvk::buffer appvk::createIndexBuffer(const std::vector<uint32_t>& indices) {
     VkDeviceSize bufferSize = indices.size() * sizeof(uint32_t);
 
-    createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-    stagingBuffer, stagingMemory);
+    buffer staging = createBuffer(bufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
+    VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    createBuffer(bufferSize,
+    buffer local = createBuffer(bufferSize,
     VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
-    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    indexBuffer, indexMemory);
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     void *data;
-    vkMapMemory(dev, stagingMemory, 0, bufferSize, 0, &data);
+    vkMapMemory(dev, staging.mem, 0, bufferSize, 0, &data);
     memcpy(data, indices.data(), bufferSize);
-    vkUnmapMemory(dev, stagingMemory);
+    vkUnmapMemory(dev, staging.mem);
 
-    copyBuffer(stagingBuffer, indexBuffer, bufferSize);
+    copyBuffer(staging.buf, local.buf, bufferSize);
 
-    vkFreeMemory(dev, stagingMemory, nullptr);
-    vkDestroyBuffer(dev, stagingBuffer, nullptr);
+    vkFreeMemory(dev, staging.mem, nullptr);
+    vkDestroyBuffer(dev, staging.buf, nullptr);
+
+    return local;
 }
 
-void appvk::createTextureImage(std::string_view path) {
+appvk::texture appvk::createTextureImage(std::string_view path, bool flip) {
+    // if the image format considers the origin to be the top left (png), then flip.
+    stbi_set_flip_vertically_on_load_thread(flip);
+
     int width, height, chans;
     unsigned char *data = stbi_load(path.data(), &width, &height, &chans, STBI_rgb_alpha);
     if (!data) {
         throw std::runtime_error("cannot load texture!");
     }
 
-    texMipLevels = floor(log2(std::max(width, height))) + 1;
+    unsigned int mipLevels = floor(log2(std::max(width, height))) + 1;
     
     VkDeviceSize imageSize = width * height * 4;
 
-    VkBuffer sbuf = VK_NULL_HANDLE;
-    VkDeviceMemory smem = VK_NULL_HANDLE;
-
-    createBuffer(imageSize, 
+    buffer staging = createBuffer(imageSize, 
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        sbuf, smem);
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
     void *map_data;
-    vkMapMemory(dev, smem, 0, imageSize, 0, &map_data);
+    vkMapMemory(dev, staging.mem, 0, imageSize, 0, &map_data);
     memcpy(map_data, data, imageSize);
-    vkUnmapMemory(dev, smem);
+    vkUnmapMemory(dev, staging.mem);
 
     stbi_image_free(data);
 
     // used as a src when blitting to make mipmaps
-    createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, texMipLevels, VK_SAMPLE_COUNT_1_BIT,
+    tex = {createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, mipLevels, VK_SAMPLE_COUNT_1_BIT,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        texImage, texMem);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
     
-    transitionImageLayout(texImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texMipLevels);
-    copyBufferToImage(sbuf, texImage, uint32_t(width), uint32_t(height));
+    transitionImageLayout(tex, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copyBufferToImage(staging.buf, tex.im, uint32_t(width), uint32_t(height));
 
-    vkFreeMemory(dev, smem, nullptr);
-    vkDestroyBuffer(dev, sbuf, nullptr);
+    vkFreeMemory(dev, staging.mem, nullptr);
+    vkDestroyBuffer(dev, staging.buf, nullptr);
 
-    generateMipmaps(texImage, VK_FORMAT_R8G8B8A8_SRGB, width, height, texMipLevels);
+    generateMipmaps(tex.im, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
+
+    return tex;
 }
 
 void appvk::createDepthImage() {
-    createImage(swapExtent.width, swapExtent.height,
+    depth = createImage(swapExtent.width, swapExtent.height,
         depthFormat, 1, msaaSamples,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        depthImage, depthMemory);
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
     
-    transitionImageLayout(depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, 1);
+    transitionImageLayout(depth, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     
-    depthView = createImageView(depthImage, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
+    depth.view = createImageView(depth.im, depthFormat, 1, VK_IMAGE_ASPECT_DEPTH_BIT);
 }
 
 void appvk::createMultisampleImage() {
-    createImage(swapExtent.width, swapExtent.height, swapFormat, 1, msaaSamples, 
+    ms = createImage(swapExtent.width, swapExtent.height, swapFormat, 1, msaaSamples, 
     VK_IMAGE_TILING_OPTIMAL,
     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT,
-    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-    msImage, msMemory);
+    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-    msImageView = createImageView(msImage, swapFormat, 1, VK_IMAGE_ASPECT_COLOR_BIT);
+    ms.view = createImageView(ms.im, swapFormat, 1, VK_IMAGE_ASPECT_COLOR_BIT);
 }

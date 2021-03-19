@@ -1,4 +1,6 @@
-#include "main.h"
+#include "vloader.hpp"
+
+#include "main.hpp"
 
 void appvk::recreateSwapChain() {
 	int width, height;
@@ -7,7 +9,7 @@ void appvk::recreateSwapChain() {
 		glfwGetFramebufferSize(w, &width, &height);
 		glfwWaitEvents(); // put this thread to sleep until events exist
 	}
-	
+
 	vkDeviceWaitIdle(dev);
 
 	cleanupSwapChain();
@@ -21,53 +23,62 @@ void appvk::recreateSwapChain() {
 	createFramebuffers();
 	createUniformBuffers();
 	createDescriptorPool();
-	allocDescriptorSets();
-	allocRenderCmdBuffers(numIndices);
+	allocDescriptorSets(descSet);
+	allocDescriptorSetTexture(descSet, tex);
+	allocRenderCmdBuffers();
 	createSyncs();
 }
 
-void appvk::init() {
+appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
 	createWindow();
-	//glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+
+	// disable and center cursor
+	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
 	createInstance();
 	if (debug) {
 		setupDebugMessenger();
 	}
 	createSurface();
-	pickPhysicalDevice(any);
+	pickPhysicalDevice(nvidia);
 	createLogicalDevice();
-	
+
 	createSwapChain();
 	createSwapViews();
-	
+
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
-	
+
 	createCommandPool();
 	createDepthImage();
 	createMultisampleImage();
 	createFramebuffers();
-	
-	std::string_view obj_path = "models/teapot.obj";
-	vload::vloader v(obj_path);
-	cout << "loaded model " << obj_path << "\n";
-	
-	createVertexBuffer(v.meshList[0].verts);
-	createIndexBuffer(v.meshList[0].indices);
 
-	std::string_view grass_path = "textures/grass/grass02 diffuse 1k.jpg";
-	createTextureImage(grass_path);
-	cout << "loaded texture " << grass_path << "\n";
-	texView = createImageView(texImage, VK_FORMAT_R8G8B8A8_SRGB, texMipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-	createSampler();
-	
-	numIndices = v.meshList[0].indices.size();
+	std::string_view grassPath = "models/teapot.obj";
+	vload::vloader g(grassPath, false, false);
+	cout << "loaded model " << grassPath << "\n";
+
+	vert = createVertexBuffer(g.meshList[0].verts);
+	index = createIndexBuffer(g.meshList[0].indices);
+
+	numIndices = g.meshList[0].indices.size();
+
+	std::string_view terrainFloor = "textures/grass/grass02 height 1k.jpg";
+	tex = createTextureImage(terrainFloor, false);
+	cout << "loaded texture " << terrainFloor << "\n";
+	tex.view = createImageView(tex.im, VK_FORMAT_R8G8B8A8_SRGB, tex.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+	tex.samp = createSampler(tex.mipLevels);
+
 	createUniformBuffers();
 	createDescriptorPool();
-	
-	allocDescriptorSets();
-	allocRenderCmdBuffers(numIndices);
+
+	allocDescriptorSets(descSet);
+
+	allocDescriptorSetTexture(descSet, tex);
+
+	allocRenderCmdBuffers();
+
 	createSyncs();
 }
 
@@ -75,14 +86,14 @@ void appvk::drawFrame() {
 
 	// NOTE: acquiring an image, writing to it, and presenting it are all async operations.
 	// The relevant vulkan calls return before the operation completes.
-	
+
 	// wait for a command buffer to finish writing to the current image
 	vkWaitForFences(dev, 1, &inFlightFences[currFrame], VK_FALSE, UINT64_MAX);
 
 	uint32_t nextFrame;
 	VkResult r = vkAcquireNextImageKHR(dev, swap, UINT64_MAX, imageAvailSems[currFrame], VK_NULL_HANDLE, &nextFrame);
 	// NOTE: currFrame may not always be equal to nextFrame (there's no guarantee that nextFrame increases linearly)
-	
+
 	if (r == VK_ERROR_OUT_OF_DATE_KHR || resizeOccurred) {
 		recreateSwapChain(); // have to recreate the swapchain here
 		resizeOccurred = false;
@@ -102,7 +113,7 @@ void appvk::drawFrame() {
 
 	VkSubmitInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	
+
 	VkSemaphore renderBeginSems[] = { imageAvailSems[currFrame] };
 	VkSemaphore renderEndSems[] = { renderDoneSems[currFrame] };
 
@@ -113,13 +124,13 @@ void appvk::drawFrame() {
 	// NOTE: stages not covered by a semaphore may execute before the semaphore is signaled.
 	VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
 	si.pWaitDstStageMask = waitStages;
-	
+
 	si.commandBufferCount = 1;
 	si.pCommandBuffers = &commandBuffers[nextFrame];
 
 	si.signalSemaphoreCount = 1;
 	si.pSignalSemaphores = renderEndSems;
-	
+
 	vkResetFences(dev, 1, &inFlightFences[currFrame]); // has to be unsignaled for vkQueueSubmit
 	vkQueueSubmit(gQueue, 1, &si, inFlightFences[currFrame]);
 
@@ -130,7 +141,7 @@ void appvk::drawFrame() {
 	pInfo.swapchainCount = 1;
 	pInfo.pSwapchains = &swap;
 	pInfo.pImageIndices = &nextFrame;
-	
+
 	r = vkQueuePresentKHR(gQueue, &pInfo);
 	if (r == VK_ERROR_OUT_OF_DATE_KHR || resizeOccurred) {
 		recreateSwapChain();
@@ -143,12 +154,12 @@ void appvk::drawFrame() {
 	currFrame = (currFrame + 1) % framesInFlight;
 }
 
-void appvk::loop() {
+void appvk::run() {
 	while (!glfwWindowShouldClose(w)) {
 		glfwPollEvents();
 		c.update(w);
 		drawFrame();
-		
+
 		if (glfwGetKey(w, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
 			glfwSetWindowShouldClose(w, GLFW_TRUE);
 		}

@@ -1,5 +1,5 @@
 #pragma once
-#include "glfw_wrapper.h"
+#include "glfw_wrapper.hpp"
 
 // VK_EXT_debug_utils
 VkResult CreateDebugUtilsMessengerEXT(VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkDebugUtilsMessengerEXT* pDebugMessenger);

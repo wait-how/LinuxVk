@@ -1,4 +1,4 @@
-#include "main.h"
+#include "main.hpp"
 
 void appvk::copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size) {
     VkCommandBuffer buf = beginSingleCommand();
@@ -27,28 +27,31 @@ uint32_t appvk::findMemoryType(uint32_t legalMemoryTypes, VkMemoryPropertyFlags 
     throw std::runtime_error("cannot find proper memory type!");
 }
 
-void appvk::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props, VkBuffer& buf, VkDeviceMemory& bufMem) {
+appvk::buffer appvk::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props) {
     VkBufferCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     createInfo.size = size;
     createInfo.usage = usage;
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vkCreateBuffer(dev, &createInfo, nullptr, &buf) != VK_SUCCESS) {
+    buffer buf;
+    if (vkCreateBuffer(dev, &createInfo, nullptr, &(buf.buf)) != VK_SUCCESS) {
         throw std::runtime_error("cannot create buffer!");
     }
 
     VkMemoryRequirements mreq{};
-    vkGetBufferMemoryRequirements(dev, buf, &mreq);
+    vkGetBufferMemoryRequirements(dev, buf.buf, &mreq);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = mreq.size;
     allocInfo.memoryTypeIndex = findMemoryType(mreq.memoryTypeBits, props);
 
-    if (vkAllocateMemory(dev, &allocInfo, nullptr, &bufMem) != VK_SUCCESS) {
+    if (vkAllocateMemory(dev, &allocInfo, nullptr, &(buf.mem)) != VK_SUCCESS) {
         throw std::runtime_error("cannot allocate buffer memory!");
     }
 
-    vkBindBufferMemory(dev, buf, bufMem, 0);
+    vkBindBufferMemory(dev, buf.buf, buf.mem, 0);
+
+    return buf;
 }

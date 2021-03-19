@@ -1,30 +1,28 @@
 #pragma once
 
 #include <iostream>
-
 #include <vector>
-#include <string>
 #include <string_view>
 #include <optional> // C++17, for device queue querying
-#include <set>
-#include <array> // for returning arrays of things
+#include <utility> // for std::pair
+#include <tuple>
 
-#include <cstring> // for strcmp
+#include "glm_mat_wrapper.hpp"
 
-#include "glm_wrapper.h"
-#include "camera.h"
-#include "vloader.h"
+#include "vformat.hpp"
+#include "camera.hpp"
+#include "terrain.hpp"
 
 using std::cout;
 using std::cerr;
 
 class appvk {
 public:
-	void run() {
-		init();
-		loop();
-		cleanup();
-	}
+
+	appvk();
+	~appvk();
+
+	void run();
 
 private:
 
@@ -48,7 +46,7 @@ private:
 
     static void windowSizeCallback(GLFWwindow* w, int width, int height);
 
-    const std::vector<const char*> validationLayers = {
+    constexpr static std::array<const char*, 1> validationLayers = {
         "VK_LAYER_KHRONOS_validation",
     };
 
@@ -71,7 +69,7 @@ private:
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
     VkSampleCountFlagBits msaaSamples;
 
-	const std::vector<const char*> requiredExtensions = {
+	constexpr static std::array<const char*, 2> requiredExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME,
 	};
@@ -119,18 +117,32 @@ private:
 	
 	VkRenderPass renderPass = VK_NULL_HANDLE;
 
-	VkFormat depthFormat;
-
     void createRenderPass();
 
-	struct ubo {
+	struct mvp {
 		alignas(16) glm::mat4 model;
 		alignas(16) glm::mat4 view;
 		alignas(16) glm::mat4 proj;
 	};
 
-	std::vector<VkBuffer> uniformBuffers;
-	std::vector<VkDeviceMemory> uniformMemories;
+	struct buffer {
+		VkBuffer buf = VK_NULL_HANDLE;
+		VkDeviceMemory mem = VK_NULL_HANDLE;
+	};
+
+	struct image {
+		VkImage im = VK_NULL_HANDLE;
+		VkDeviceMemory mem = VK_NULL_HANDLE;
+		VkImageView view = VK_NULL_HANDLE;
+		unsigned int mipLevels = 0;
+	};
+
+	struct texture : image {
+		VkSampler samp = VK_NULL_HANDLE;
+	};
+
+	std::vector<VkBuffer> mvpBuffers;
+	std::vector<VkDeviceMemory> mvpMemories;
 	void createUniformBuffers();
 
     VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
@@ -139,14 +151,15 @@ private:
     VkDescriptorPool dPool = VK_NULL_HANDLE;
     void createDescriptorPool();
 
-    std::vector<VkDescriptorSet> dSet;
-    void allocDescriptorSets();
+    std::vector<VkDescriptorSet> descSet;
+    void allocDescriptorSets(std::vector<VkDescriptorSet>& dSet);
+	void allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex);
 
-	std::vector<char> readFile(const std::string& path);
+	std::vector<char> readFile(std::string_view path);
     VkShaderModule createShaderModule(const std::vector<char>& spv);
 	
 	VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
-	VkPipeline gpipe = VK_NULL_HANDLE;
+	VkPipeline pipe = VK_NULL_HANDLE;
 	void createGraphicsPipeline();
 
 	bool printed = false;
@@ -157,53 +170,45 @@ private:
 
 	VkCommandPool cp = VK_NULL_HANDLE;
 	void createCommandPool();
-	
+
 	uint32_t findMemoryType(uint32_t legalMemoryTypes, VkMemoryPropertyFlags properties);
-    void createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props, VkBuffer& buf, VkDeviceMemory& bufMem);
+    buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props);
 
     VkCommandBuffer beginSingleCommand();
     void endSingleCommand(VkCommandBuffer buf);
 
-	void createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props, VkImage& image, VkDeviceMemory& imageMemory);
-    void transitionImageLayout(VkImage image, VkImageLayout oldl, VkImageLayout newl, unsigned int mipLevels);
+	image createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props);
+    void transitionImageLayout(image image, VkImageLayout oldl, VkImageLayout newl);
     
     void copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_t height);
     void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
 
-	VkBuffer stagingBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory stagingMemory = VK_NULL_HANDLE;
+	buffer vert;
+    buffer createVertexBuffer(std::vector<vformat::vertex>& v);
+	buffer createVertexBuffer(const std::vector<uint8_t>& verts);
 
-	VkBuffer vertexBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory vertexMemory = VK_NULL_HANDLE;
-    void createVertexBuffer(const std::vector<vload::vertex>& verts);
+	buffer index;
+	unsigned int numIndices;
+    buffer createIndexBuffer(const std::vector<uint32_t>& indices);
 
-	VkBuffer indexBuffer = VK_NULL_HANDLE;
-	VkDeviceMemory indexMemory = VK_NULL_HANDLE;
-    void createIndexBuffer(const std::vector<uint32_t>& indices);
+	texture tex;
+	texture createTextureImage(std::string_view path, bool flip);
 
-	VkImage texImage = VK_NULL_HANDLE;
-	VkDeviceMemory texMem = VK_NULL_HANDLE;
-    VkImageView texView = VK_NULL_HANDLE;
-	VkSampler texSamp = VK_NULL_HANDLE;
-	unsigned int texMipLevels;
-	void createTextureImage(std::string_view path);
-
-    void createSampler();
+    VkSampler createSampler(unsigned int mipLevels);
 	void generateMipmaps(VkImage image, VkFormat format, unsigned int width, unsigned int height, unsigned int levels);
 
-	VkImage depthImage = VK_NULL_HANDLE;
-	VkDeviceMemory depthMemory = VK_NULL_HANDLE;
-	VkImageView depthView = VK_NULL_HANDLE;
+	image depth;
+	VkFormat depthFormat;
     void createDepthImage();
 
-	VkImage msImage = VK_NULL_HANDLE;
-	VkDeviceMemory msMemory = VK_NULL_HANDLE;
-	VkImageView msImageView = VK_NULL_HANDLE;
+	image ms;
     void createMultisampleImage();
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	
-	void allocRenderCmdBuffers(uint32_t numIndices);
+	uint32_t grassVertices;
+	uint32_t grassIndices;
+	void allocRenderCmdBuffers();
 
 	constexpr static unsigned int framesInFlight = 2;
 
@@ -214,22 +219,16 @@ private:
 	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
     void createSyncs();
 
-	uint32_t numIndices = 0;
-
-    void init();
     void recreateSwapChain();
 
 	// this scene is set up so that the camera is in -Z looking towards +Z.
     cam::camera c;
-	glm::vec3 cpos = glm::vec3(0.0, 0.0, -3.0);
 	
     void updateUniformBuffer(uint32_t imageIndex);
 
 	size_t currFrame = 0;
 
 	void drawFrame();
-    void loop();
 
     void cleanupSwapChain();
-    void cleanup();
 };

@@ -1,4 +1,4 @@
-#include "main.h"
+#include "main.hpp"
 
 VkImageView appvk::createImageView(VkImage im, VkFormat format, unsigned int mipLevels, VkImageAspectFlags aspectMask) {
     VkImageViewCreateInfo createInfo{};
@@ -46,7 +46,7 @@ VkFormat appvk::findImageFormat(const std::vector<VkFormat>& formats, VkImageTil
 }
 
 // transition miplevels of image from the oldl layout to the newl layout
-void appvk::transitionImageLayout(VkImage image, VkImageLayout oldl, VkImageLayout newl, unsigned int mipLevels) {
+void appvk::transitionImageLayout(image im, VkImageLayout oldl, VkImageLayout newl) {
     VkCommandBuffer buf = beginSingleCommand();
 
     VkImageSubresourceRange range{};
@@ -60,14 +60,14 @@ void appvk::transitionImageLayout(VkImage image, VkImageLayout oldl, VkImageLayo
         range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     }
 
-    range.levelCount = mipLevels;
+    range.levelCount = im.mipLevels;
     range.layerCount = 1;
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
     barrier.oldLayout = oldl;
     barrier.newLayout = newl;
-    barrier.image = image;
+    barrier.image = im.im;
     barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     barrier.subresourceRange = range;
@@ -122,7 +122,7 @@ void appvk::copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_
     endSingleCommand(cbuf);
 }
 
-void appvk::createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props, VkImage& image, VkDeviceMemory& imageMemory) {
+appvk::image appvk::createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props) {
     VkImageCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     createInfo.imageType = VK_IMAGE_TYPE_2D;
@@ -136,43 +136,51 @@ void appvk::createImage(unsigned int width, unsigned int height, VkFormat format
     createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // discard existing texels when loading
     // initiallayout can only be ..._UNDEFINED or ..._PREINITIALIZED
-    if (vkCreateImage(dev, &createInfo, nullptr, &image) != VK_SUCCESS) {
+    image im;
+    if (vkCreateImage(dev, &createInfo, nullptr, &(im.im)) != VK_SUCCESS) {
         throw std::runtime_error("cannot create texture image!");
     }
 
     VkMemoryRequirements memReq;
-    vkGetImageMemoryRequirements(dev, image, &memReq);
+    vkGetImageMemoryRequirements(dev, im.im, &memReq);
 
     VkMemoryAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     allocInfo.allocationSize = memReq.size;
     allocInfo.memoryTypeIndex = findMemoryType(memReq.memoryTypeBits, props);
 
-    if (vkAllocateMemory(dev, &allocInfo, nullptr, &imageMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(dev, &allocInfo, nullptr, &(im.mem)) != VK_SUCCESS) {
         throw std::runtime_error("cannot allocate texture memory!");
     }
 
-    vkBindImageMemory(dev, image, imageMemory, 0);
+    vkBindImageMemory(dev, im.im, im.mem, 0);
+
+    im.mipLevels = mipLevels;
+
+    return im;
 }
 
-void appvk::createSampler() {
+VkSampler appvk::createSampler(unsigned int mipLevels) {
     VkSamplerCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     createInfo.magFilter = VK_FILTER_LINEAR;
     createInfo.minFilter = VK_FILTER_LINEAR;
     createInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    createInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    createInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
     createInfo.mipLodBias = 0.0f;
     createInfo.anisotropyEnable = VK_TRUE;
     createInfo.maxAnisotropy = 16.0f;
     createInfo.compareEnable = VK_FALSE;
     createInfo.minLod = 0.0f;
-    createInfo.maxLod = texMipLevels;
+    createInfo.maxLod = mipLevels;
 
-    if (vkCreateSampler(dev, &createInfo, nullptr, &texSamp) != VK_SUCCESS) {
+    VkSampler samp;
+    if (vkCreateSampler(dev, &createInfo, nullptr, &samp) != VK_SUCCESS) {
         throw std::runtime_error("cannot create sampler!");
     }
+
+    return samp;
 }
 
 void appvk::generateMipmaps(VkImage image, VkFormat format, unsigned int width, unsigned int height, unsigned int levels) {

@@ -1,0 +1,3 @@
+[submodule "gfx-support"]
+	path = gfx-support
+	url = https://github.com/PICOVERAVR/gfx-support

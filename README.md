@@ -1,20 +1,24 @@
 # LinuxVk
-This repo houses random experiments with Vulkan on Linux.
+A base of code for vulkan work on linux.
 ## Installation
-Compilation deps:
- - nproc
+Make sure to use the `--recurse-submodules` option when cloning.  Run `make dbg` for a debug build or `make opt` for a release build.
+
+Build dependencies:
  - pkg-config
- - some recent version of clang++ and lld
- - vulkan headers:
-   - vulkan-headers
-   - vulkan-validation-layers (for debugging)
-   - vulkan-tools (for the very useful vulkaninfo command)
+ - some recent version of clang++ (g++ should work, but is not tested)
 
-Runtime deps (listed as arch packages):
- - a vulkan-capable driver (only intel and nvidia tested!)
- - assimp
+Compilation dependencies:
+ - vulkan-headers
  - glm
+ - assimp
  - glfw
- - glslangValidator
 
-While writing things, I noticed that if you use optimus manager and try and run things on the intel GPU while in NVIDIA mode, the app crashes.  This is known behavior and is documented [here](https://github.com/Askannz/optimus-manager/wiki/FAQ,-common-issues,-troubleshooting).
+Runtime dependencies:
+ - a vulkan-capable gpu and driver
+ - vulkan-validation-layers (if debugging)
+ - assimp
+ - glfw
+
+Optional dependancies:
+ - vulkan-tools (for the very useful vulkaninfo command)
+

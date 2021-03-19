@@ -1,6 +1,6 @@
-#include <cstdint> // for UINT32_MAX
+#include "main.hpp"
 
-#include "main.h"
+#include <cstdint> // for UINT32_MAX
 
 void appvk::createSurface() {
     // platform-agnostic version of vulkan create surface extension
@@ -126,17 +126,17 @@ void appvk::cleanupSwapChain() {
 
     vkFreeCommandBuffers(dev, cp, commandBuffers.size(), commandBuffers.data());
 
-    vkDestroyImageView(dev, depthView, nullptr);
-    vkFreeMemory(dev, depthMemory, nullptr);
-    vkDestroyImage(dev, depthImage, nullptr);
+    vkDestroyImageView(dev, depth.view, nullptr);
+    vkFreeMemory(dev, depth.mem, nullptr);
+    vkDestroyImage(dev, depth.im, nullptr);
 
-    vkDestroyImageView(dev, msImageView, nullptr);
-    vkFreeMemory(dev, msMemory, nullptr);
-    vkDestroyImage(dev, msImage, nullptr);
+    vkDestroyImageView(dev, ms.view, nullptr);
+    vkFreeMemory(dev, ms.mem, nullptr);
+    vkDestroyImage(dev, ms.im, nullptr);
 
     for (size_t i = 0; i < swapImages.size(); i++) {
-        vkFreeMemory(dev, uniformMemories[i], nullptr);
-        vkDestroyBuffer(dev, uniformBuffers[i], nullptr);
+        vkFreeMemory(dev, mvpMemories[i], nullptr);
+        vkDestroyBuffer(dev, mvpBuffers[i], nullptr);
     }
 
     vkDestroyDescriptorPool(dev, dPool, nullptr);
@@ -145,7 +145,7 @@ void appvk::cleanupSwapChain() {
         vkDestroyFramebuffer(dev, framebuffer, nullptr);
     }
 
-    vkDestroyPipeline(dev, gpipe, nullptr);
+    vkDestroyPipeline(dev, pipe, nullptr);
     vkDestroyPipelineLayout(dev, pipeLayout, nullptr);
     vkDestroyRenderPass(dev, renderPass, nullptr);
     

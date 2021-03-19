@@ -8,7 +8,7 @@
 layout (location = 0) in vec3 position;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texcoord;
-layout (location = 3) in vec3 tangent;
+// layout (location = 3) in vec3 tangent;
 
 layout (set = 0, binding = 0) uniform uniformBuffer {
 	mat4 model;

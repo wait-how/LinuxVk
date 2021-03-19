@@ -1,14 +1,15 @@
-#include "main.h"
+#include "main.hpp"
 
 void appvk::createUniformBuffers() {
-    VkDeviceSize bufferSize = sizeof(ubo);
-    uniformBuffers.resize(swapImages.size());
-    uniformMemories.resize(swapImages.size());
+    mvpBuffers.resize(swapImages.size());
+    mvpMemories.resize(swapImages.size());
 
     for (size_t i = 0; i < swapImages.size(); i++) {
-        createBuffer(bufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        uniformBuffers[i], uniformMemories[i]);
+        buffer temp = createBuffer(sizeof(mvp), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        
+        mvpBuffers[i] = temp.buf;
+        mvpMemories[i] = temp.mem;
     }
 }
 
@@ -37,7 +38,9 @@ void appvk::createDescriptorSetLayout() {
 }
 
 void appvk::createDescriptorPool() {
-    VkDescriptorPoolSize poolSizes[2];
+    size_t numPools = 2;
+    VkDescriptorPoolSize poolSizes[numPools];
+
     poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     poolSizes[0].descriptorCount = swapImages.size();
 
@@ -46,8 +49,8 @@ void appvk::createDescriptorPool() {
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.maxSets = swapImages.size();
-    createInfo.poolSizeCount = 2;
+    createInfo.maxSets = swapImages.size() * numPools;
+    createInfo.poolSizeCount = numPools;
     createInfo.pPoolSizes = poolSizes;
 
     if (vkCreateDescriptorPool(dev, &createInfo, nullptr, &dPool) != VK_SUCCESS) {
@@ -55,7 +58,7 @@ void appvk::createDescriptorPool() {
     }
 }
 
-void appvk::allocDescriptorSets() {
+void appvk::allocDescriptorSets(std::vector<VkDescriptorSet>& dSet) {
     std::vector<VkDescriptorSetLayout> dLayout(swapImages.size(), dSetLayout);
 
     VkDescriptorSetAllocateInfo allocInfo{};
@@ -71,32 +74,39 @@ void appvk::allocDescriptorSets() {
 
     for (size_t i = 0; i < swapImages.size(); i++) {
         VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = uniformBuffers[i];
+        bufferInfo.buffer = mvpBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(ubo);
+        bufferInfo.range = sizeof(mvp);
 
+        VkWriteDescriptorSet set{};
+        set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        set.dstSet = dSet[i];
+        set.dstBinding = 0;
+        set.dstArrayElement = 0;
+        set.descriptorCount = 1;
+        set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        set.pBufferInfo = &bufferInfo;
+
+        vkUpdateDescriptorSets(dev, 1, &set, 0, nullptr);
+    }
+}
+
+void appvk::allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex) {
+    for (size_t i = 0; i < swapImages.size(); i++) {
         VkDescriptorImageInfo imageInfo{};
-        imageInfo.sampler = texSamp;
-        imageInfo.imageView = texView;
+        imageInfo.sampler = tex.samp;
+        imageInfo.imageView = tex.view;
         imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkWriteDescriptorSet sets[2] = {};
-        sets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sets[0].dstSet = dSet[i];
-        sets[0].dstBinding = 0;
-        sets[0].dstArrayElement = 0;
-        sets[0].descriptorCount = 1;
-        sets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        sets[0].pBufferInfo = &bufferInfo;
+        VkWriteDescriptorSet set{};
+        set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        set.dstSet = dSet[i];
+        set.dstBinding = 1;
+        set.dstArrayElement = 0;
+        set.descriptorCount = 1;
+        set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        set.pImageInfo = &imageInfo;
 
-        sets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        sets[1].dstSet = dSet[i];
-        sets[1].dstBinding = 1;
-        sets[1].dstArrayElement = 0;
-        sets[1].descriptorCount = 1;
-        sets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        sets[1].pImageInfo = &imageInfo;
-
-        vkUpdateDescriptorSets(dev, 2, sets, 0, nullptr);
+        vkUpdateDescriptorSets(dev, 1, &set, 0, nullptr);
     }
 }

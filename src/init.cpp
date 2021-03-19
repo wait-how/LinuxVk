@@ -1,6 +1,10 @@
-#include "extensions.h"
+#include <cstring> // for strcmp
+#include <set>
 
-#include "main.h"
+#include "options.hpp"
+#include "extensions.hpp"
+
+#include "main.hpp"
 
 void appvk::windowSizeCallback(GLFWwindow* w, int width, int height) {
 	(void)width;
@@ -14,7 +18,7 @@ void appvk::createWindow() {
     glfwInit();
     
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    w = glfwCreateWindow(screenWidth, screenHeight, "Demo", nullptr, nullptr);
+    w = glfwCreateWindow(screenWidth, screenHeight, "demo", nullptr, nullptr);
     if (!w) {
         throw std::runtime_error("cannot create window!");
     }
@@ -40,7 +44,7 @@ void appvk::checkValidation() {
                 }
             }
             if (!found) {
-                throw std::runtime_error("can't find all validation layers!");
+                throw std::runtime_error("cannot find all validation layers!");
             }
         }
         cout << "found validation layers\n";
@@ -74,7 +78,7 @@ VKAPI_ATTR VkBool32 appvk::debugCallback(
     (void) userData;
     
     cerr << "\t" << data->pMessage << "\n";
-    return VK_FALSE; // don't abort on error in callback
+    return VK_FALSE; // don't abort on error
 }
 
 void appvk::populateDebugMessenger(VkDebugUtilsMessengerCreateInfoEXT &createInfo) {
@@ -214,7 +218,7 @@ void appvk::checkChooseDevice(VkPhysicalDevice pd, manufacturer m) {
     
     if (correctm && correctf && pdev == VK_NULL_HANDLE) {
         pdev = pd;
-        msaaSamples = getSamples(2);
+        msaaSamples = getSamples(options::msaaSamples);
         cout << " (selected)";
     }
 
@@ -306,7 +310,7 @@ void appvk::createLogicalDevice() {
     vkGetDeviceQueue(dev, *(qi.graphics), 0, &gQueue); // creating a device also creates queues for it
 }
 
-void appvk::cleanup() {
+appvk::~appvk() {
 
     cleanupSwapChain();
 
@@ -314,16 +318,16 @@ void appvk::cleanup() {
 
     vkDestroyCommandPool(dev, cp, nullptr);
 
-    vkDestroySampler(dev, texSamp, nullptr);
-    vkDestroyImageView(dev, texView, nullptr);
-    vkFreeMemory(dev, texMem, nullptr);
-    vkDestroyImage(dev, texImage, nullptr);
+    vkDestroySampler(dev, tex.samp, nullptr);
+    vkDestroyImageView(dev, tex.view, nullptr);
+    vkFreeMemory(dev, tex.mem, nullptr);
+    vkDestroyImage(dev, tex.im, nullptr);
 
-    vkFreeMemory(dev, indexMemory, nullptr);
-    vkDestroyBuffer(dev, indexBuffer, nullptr);
+    vkFreeMemory(dev, index.mem, nullptr);
+    vkDestroyBuffer(dev, index.buf, nullptr);
 
-    vkFreeMemory(dev, vertexMemory, nullptr);
-    vkDestroyBuffer(dev, vertexBuffer, nullptr);
+    vkFreeMemory(dev, vert.mem, nullptr);
+    vkDestroyBuffer(dev, vert.buf, nullptr);
 
     vkDestroyDevice(dev, nullptr);
     vkDestroySurfaceKHR(instance, surf, nullptr);
