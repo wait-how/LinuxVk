@@ -3,6 +3,7 @@
 layout (location = 0) in vec3 p;
 layout (location = 1) in vec3 n;
 layout (location = 2) in vec2 uv;
+layout (location = 3) in vec3 eye;
 
 layout (set = 0, binding = 1) uniform sampler2D tex;
 
@@ -13,7 +14,7 @@ struct point {
 	vec3 color;
 };
 
-vec3 phong(in point l, in vec3 c) {
+vec3 blinn_phong(in point l, in vec3 c) {
 	vec3 ldir = l.p - p;
 	
 	float dist = length(ldir);
@@ -29,17 +30,19 @@ vec3 phong(in point l, in vec3 c) {
 	vec3 amb = 0.15 * c;
 	vec3 diffc = mix(amb, c * l.color, diff);
 
-	/*
 	vec3 eyedir = normalize(eye - p);
-	float spec = clamp(dot(reflect(-ldir, nn), eyedir), 0.0, 1.0);
+
+	// blinn_phong calculates specular highlights from a vector halfway between
+	// the light vector and the eye vector, meaning an angle between the
+	// reflected light dir and the eye dir that is over 90° doesn't become zero.
+	vec3 lhalf = normalize(ldir + eyedir);
+
+	float spec = clamp(dot(lhalf, nn), 0.0, 1.0);
 	spec = pow(spec, 150);
 
 	vec3 specc = l.color * spec;
 
 	return (diffc + specc) * falloff;
-	*/
-	
-	return diffc * falloff;
 }
 
 /*
@@ -55,7 +58,7 @@ void main() {
 
 	vec3 c = texture(tex, uv).rgb;
 
-	c = phong(l, c);
+	c = blinn_phong(l, c);
 	// c = fog(3.0, 7.0, c);
 
 	fragcolor = vec4(min(c, vec3(1.0)), 1.0);

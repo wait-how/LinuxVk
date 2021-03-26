@@ -36,13 +36,15 @@ void appvk::updateUniformBuffer(uint32_t imageIndex) {
     //auto current = high_resolution_clock::now();
     //float time = duration<float, seconds::period>(current - last).count();
 
-    mvp u;
+    ubo u;
     u.model = glm::mat4(1.0f);
     u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
     u.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 
+    u.eye = c.pos;
+
     void* data;
-    vkMapMemory(dev, mvpMemories[imageIndex], 0, sizeof(mvp), 0, &data);
-    memcpy(data, &u, sizeof(mvp));
+    vkMapMemory(dev, mvpMemories[imageIndex], 0, sizeof(ubo), 0, &data);
+    memcpy(data, &u, sizeof(ubo));
     vkUnmapMemory(dev, mvpMemories[imageIndex]);
 }

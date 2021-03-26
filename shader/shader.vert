@@ -14,11 +14,13 @@ layout (set = 0, binding = 0) uniform uniformBuffer {
 	mat4 model;
 	mat4 view;
 	mat4 proj;
+	vec3 c;
 } ubo;
 
 layout (location = 0) out vec3 p;
 layout (location = 1) out vec3 n;
 layout (location = 2) out vec2 uv;
+layout (location = 3) out vec3 eye;
 
 void main() {
 
@@ -29,4 +31,5 @@ void main() {
 	p = p4.xyz;
 	n = mat3(ubo.model) * normal;
 	uv = texcoord;
+	eye = ubo.c;
 }

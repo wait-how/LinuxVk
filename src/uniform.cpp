@@ -5,7 +5,7 @@ void appvk::createUniformBuffers() {
     mvpMemories.resize(swapImages.size());
 
     for (size_t i = 0; i < swapImages.size(); i++) {
-        buffer temp = createBuffer(sizeof(mvp), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+        buffer temp = createBuffer(sizeof(ubo), VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
         
         mvpBuffers[i] = temp.buf;
@@ -76,7 +76,7 @@ void appvk::allocDescriptorSets(std::vector<VkDescriptorSet>& dSet) {
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = mvpBuffers[i];
         bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(mvp);
+        bufferInfo.range = sizeof(ubo);
 
         VkWriteDescriptorSet set{};
         set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
