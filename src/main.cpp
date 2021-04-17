@@ -33,7 +33,7 @@ void appvk::recreateSwapChain() {
 }
 
 appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
-	createWindow();
+	createWindow(false);
 
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);

@@ -50,7 +50,7 @@ private:
         "VK_LAYER_KHRONOS_validation",
     };
 
-    void createWindow();
+    void createWindow(bool fullscreen);
     void checkValidation();
     const std::vector<const char*> getExtensions();
 

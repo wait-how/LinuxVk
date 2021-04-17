@@ -5,6 +5,7 @@
 MAKEFLAGS += -j $(shell nproc)
 
 CXX := clang++
+LD := $(CXX)
 DB := lldb
 
 # directories to search for .cpp or .h files
@@ -39,7 +40,7 @@ $(shell mkdir -p $(dir $(OBJS)) > /dev/null)
 $(shell mkdir -p $(dir $(DEPS)) > /dev/null)
 
 .PHONY: default clean spv
-BINS := dbg opt small check 
+BINS := dbg opt small asan tsan
 
 default: dbg
 
@@ -47,16 +48,20 @@ default: dbg
 dbg: CFLAGS += -g$(DB) -Og
 
 # check for memory leaks using clang's address sanitizer (much faster than Valgrind!)
-# to get symbols, set ASAN_SYMBOLIZER_PATH.
-check: CFLAGS += -g$(DB) -Og -fsanitize=address -fno-omit-frame-pointer
-check: LDFLAGS += -fsanitize=address
+asan: CFLAGS += -g$(DB) -Og -fsanitize=address -fno-omit-frame-pointer
+asan: LDFLAGS += -fsanitize=address
+
+# check for race conditions between threads using clang's thread sanitizer
+tsan: CFLAGS += -g$(DB) -Og -fsanitize=thread
+tsan: LDFLAGS += -fsanitize=thread
 
 # fastest executable on current machine
 opt: CFLAGS += -Ofast -march=native -ffast-math -flto=thin -DNDEBUG
 opt: LDFLAGS += -flto=thin
 
-# smallest executable
-small: CFLAGS += -Oz -DNDEBUG
+# smallest executable on current machine
+small: CFLAGS += -Oz -march=native -ffast-math -flto=thin -DNDEBUG
+small: LDFLAGS += -flto=thin
 
 # clean out .o and executable files
 clean:
@@ -70,7 +75,7 @@ spv:
 
 # link executable together using object files in OBJDIR
 $(BINS): $(OBJS)
-	@$(CXX) -o $@ $(LDFLAGS) $^
+	@$(LD) -o $@ $(LDFLAGS) $^
 	@echo linked $@
 
 # if a dep file is available, include it as a dependancy

@@ -14,11 +14,15 @@ void appvk::windowSizeCallback(GLFWwindow* w, int width, int height) {
     papp->resizeOccurred = true;
 }
 
-void appvk::createWindow() {
+void appvk::createWindow(bool fullscreen) {
     glfwInit();
     
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    w = glfwCreateWindow(screenWidth, screenHeight, "demo", nullptr, nullptr);
+	if (fullscreen) {
+    	w = glfwCreateWindow(screenWidth, screenHeight, "demo", glfwGetPrimaryMonitor(), nullptr);
+	} else {
+    	w = glfwCreateWindow(screenWidth, screenHeight, "demo", nullptr, nullptr);
+	}
     if (!w) {
         throw std::runtime_error("cannot create window!");
     }
