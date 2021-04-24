@@ -93,8 +93,8 @@ void appvk::createRenderPass() {
 }
 
 void appvk::createGraphicsPipeline() {
-    std::vector<char> vertspv = readFile("shader/vert.spv");
-    std::vector<char> fragspv = readFile("shader/frag.spv");
+    std::vector<char> vertspv = readFile(".spv/shader.vert.spv");
+    std::vector<char> fragspv = readFile(".spv/shader.frag.spv");
 
     VkShaderModule vmod = createShaderModule(vertspv);
     VkShaderModule fmod = createShaderModule(fragspv);

@@ -23,7 +23,6 @@ layout (location = 2) out vec2 uv;
 layout (location = 3) out vec3 eye;
 
 void main() {
-
 	vec4 p4 = ubo.model * vec4(position, 1.0);
 
 	gl_Position = ubo.proj * ubo.view * p4;

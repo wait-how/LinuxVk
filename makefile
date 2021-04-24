@@ -63,15 +63,14 @@ opt: LDFLAGS += -flto=thin
 small: CFLAGS += -Oz -march=native -ffast-math -flto=thin -DNDEBUG
 small: LDFLAGS += -flto=thin
 
-# clean out .o and executable files
+# clean out intermediate files
 clean:
 	@rm -f $(BINS)
-	@rm -rf .dep .obj
-	@rm -f default.prof* times.txt gmon.out
+	@rm -rf .dep .obj .spv
 
 # build shaders
 spv:
-	@cd shader && $(MAKE)
+	@cd shader && $(MAKE) -s
 
 # link executable together using object files in OBJDIR
 $(BINS): $(OBJS)
