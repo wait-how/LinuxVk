@@ -4,4 +4,4 @@ small
 check
 .obj
 .dep
-shader/*.spv
+.spv
