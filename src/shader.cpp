@@ -35,19 +35,17 @@ VkShaderModule appvk::createShaderModule(const std::vector<char>& spv) {
     return mod;
 }
 
-void appvk::printShaderStats() {
-    if (printed) {
-        return;
-    }
-
+void appvk::printShaderStats(const VkPipeline& printPipe) {
     VkPipelineInfoKHR pipeInfo{};
     pipeInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
-    pipeInfo.pipeline = pipe;
+    pipeInfo.pipeline = printPipe;
 
     unsigned int numShaders;
     if (GetPipelineExecutablePropertiesKHR(dev, &pipeInfo, &numShaders, nullptr) != VK_SUCCESS) {
         throw std::runtime_error("cannot get shader statistics!");
     }
+
+    // get stats for every shader in the pipeline
     std::vector<VkPipelineExecutablePropertiesKHR> shaderProps(numShaders);
     for (auto& prop : shaderProps) {
         prop.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_PROPERTIES_KHR;
@@ -56,7 +54,7 @@ void appvk::printShaderStats() {
     
     VkPipelineExecutableInfoKHR shaderInfo{};
     shaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
-    shaderInfo.pipeline = pipe;
+    shaderInfo.pipeline = printPipe;
     
     unsigned int numStats;
     GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, nullptr);
@@ -94,6 +92,4 @@ void appvk::printShaderStats() {
         cout << "  ~ Subgroup Size: " << shaderProps[i].subgroupSize << "\n";
         shaderInfo.executableIndex++;
     }
-
-    printed = true;
 }

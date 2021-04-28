@@ -30,7 +30,7 @@ void appvk::createSyncs() {
     }
 }
 
-void appvk::updateUniformBuffer(uint32_t imageIndex) {
+void appvk::updateFrame(uint32_t imageIndex) {
     //using namespace std::chrono;
     //static auto last = high_resolution_clock::now();
     //auto current = high_resolution_clock::now();

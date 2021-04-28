@@ -1,5 +1,7 @@
 #include "main.hpp"
 
+#include "options.hpp"
+
 #include <cstdint> // for UINT32_MAX
 
 void appvk::createSurface() {
@@ -60,10 +62,10 @@ VkExtent2D appvk::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& cap) {
         VkExtent2D newV;
         // clamp width and height to [min, max] extent height
         
-        glfwGetFramebufferSize(w, (int*)&screenWidth, (int*)&screenHeight);
+        glfwGetFramebufferSize(w, (int*)&options::screenWidth, (int*)&options::screenHeight);
         
-        newV.width = std::max(cap.minImageExtent.width, std::min(cap.maxImageExtent.width, static_cast<uint32_t>(screenWidth)));
-        newV.height = std::max(cap.minImageExtent.height, std::min(cap.minImageExtent.height, static_cast<uint32_t>(screenHeight)));
+        newV.width = std::max(cap.minImageExtent.width, std::min(cap.maxImageExtent.width, static_cast<uint32_t>(options::screenWidth)));
+        newV.height = std::max(cap.minImageExtent.height, std::min(cap.minImageExtent.height, static_cast<uint32_t>(options::screenHeight)));
         return newV;
     }
 }

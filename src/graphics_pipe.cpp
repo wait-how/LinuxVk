@@ -215,7 +215,7 @@ void appvk::createGraphicsPipeline() {
         pipeCreateInfo.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
     
-    pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
+    pipeCreateInfo.flags |= VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
     pipeCreateInfo.stageCount = shaders.size();
     pipeCreateInfo.pStages = shaders.data();
     pipeCreateInfo.pVertexInputState = &vinCreateInfo;
@@ -233,8 +233,8 @@ void appvk::createGraphicsPipeline() {
         throw std::runtime_error("cannot create graphics pipeline!");
     }
 
-    if (shader_debug) {
-        printShaderStats();
+    if (shader_debug && !printed) {
+        printShaderStats(pipe);
         printed = true; // prevent stats from being printed again if we recreate the pipeline
     }
     

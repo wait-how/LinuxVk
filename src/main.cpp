@@ -1,9 +1,11 @@
-#include "vloader.hpp"
-
 #include "main.hpp"
+#include "extensions.hpp"
+
+#include "vloader.hpp"
 #include "iloader.hpp"
 
 #include <thread>
+#include <iomanip>
 
 void appvk::recreateSwapChain() {
 	int width, height;
@@ -32,8 +34,7 @@ void appvk::recreateSwapChain() {
 	createSyncs();
 }
 
-appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
-	createWindow(false);
+appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -46,12 +47,8 @@ appvk::appvk() : c(0.0f, 0.0f, -3.0f) {
 	constexpr std::string_view tp = "textures/grass/grass02 height 1k.jpg";
 	std::thread lt = std::thread([&]() -> void { t.load(tp, false); });
 
-	createInstance();
-	if (debug) {
-		setupDebugMessenger();
-	}
 	createSurface();
-	pickPhysicalDevice(any);
+	pickPhysicalDevice(nvidia);
 	createLogicalDevice();
 
 	createSwapChain();
@@ -118,7 +115,7 @@ void appvk::drawFrame() {
 
 	imagesInFlight[nextFrame] = inFlightFences[currFrame]; // this frame is using the fence at currFrame
 
-	updateUniformBuffer(nextFrame);
+	updateFrame(nextFrame);
 
 	VkSubmitInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -165,6 +162,7 @@ void appvk::drawFrame() {
 
 void appvk::run() {
 	while (!glfwWindowShouldClose(w)) {
+
 		glfwPollEvents();
 		c.update(w);
 		drawFrame();
@@ -174,7 +172,32 @@ void appvk::run() {
 		}
 	}
 
+	cout << std::endl;
+
 	vkDeviceWaitIdle(dev);
+}
+
+appvk::~appvk() {
+
+    cleanupSwapChain();
+
+    vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
+
+    vkDestroyCommandPool(dev, cp, nullptr);
+
+    vkDestroySampler(dev, tex.samp, nullptr);
+    vkDestroyImageView(dev, tex.view, nullptr);
+    vkFreeMemory(dev, tex.mem, nullptr);
+    vkDestroyImage(dev, tex.im, nullptr);
+
+    vkFreeMemory(dev, index.mem, nullptr);
+    vkDestroyBuffer(dev, index.buf, nullptr);
+
+    vkFreeMemory(dev, vert.mem, nullptr);
+    vkDestroyBuffer(dev, vert.buf, nullptr);
+
+    vkDestroyDevice(dev, nullptr);
+    vkDestroySurfaceKHR(instance, surf, nullptr);
 }
 
 int main(int argc, char **argv) {
@@ -186,7 +209,7 @@ int main(int argc, char **argv) {
 		app.run();
 	} catch (const std::exception& e) {
 		cerr << e.what() << "\n";
-		return 1;
+		return EXIT_FAILURE;
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }

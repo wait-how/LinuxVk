@@ -9,6 +9,8 @@
 
 #include "glm_mat_wrapper.hpp"
 
+#include "base.hpp"
+
 #include "vformat.hpp"
 #include "camera.hpp"
 #include "terrain.hpp"
@@ -16,7 +18,7 @@
 using std::cout;
 using std::cerr;
 
-class appvk {
+class appvk : basevk {
 public:
 
 	appvk();
@@ -26,45 +28,7 @@ public:
 
 private:
 
-	constexpr static unsigned int screenWidth = 3840;
-	constexpr static unsigned int screenHeight = 2160;
-
-	constexpr static bool verbose = false;
 	constexpr static bool shader_debug = false;
-
-#ifndef NDEBUG
-	constexpr static bool debug = true;
-#else
-	constexpr static bool debug = false;
-#endif
-	
-	GLFWwindow* w;
-	
-	bool resizeOccurred = false;
-
-	VkSurfaceKHR surf = VK_NULL_HANDLE;
-
-    static void windowSizeCallback(GLFWwindow* w, int width, int height);
-
-    constexpr static std::array<const char*, 1> validationLayers = {
-        "VK_LAYER_KHRONOS_validation",
-    };
-
-    void createWindow(bool fullscreen);
-    void checkValidation();
-    const std::vector<const char*> getExtensions();
-
-    static VKAPI_ATTR VkBool32 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT mSev,
-        VkDebugUtilsMessageTypeFlagsEXT mType,
-        const VkDebugUtilsMessengerCallbackDataEXT* data,
-        void* userData);
-    
-    VkDebugUtilsMessengerEXT debugMessenger = VK_NULL_HANDLE;
-    void populateDebugMessenger(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
-    void setupDebugMessenger();
-
-    VkInstance instance = VK_NULL_HANDLE;
-    void createInstance();
 	
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
     VkSampleCountFlagBits msaaSamples;
@@ -164,7 +128,7 @@ private:
 	void createGraphicsPipeline();
 
 	bool printed = false;
-    void printShaderStats();
+    void printShaderStats(const VkPipeline& pipe);
 
 	std::vector<VkFramebuffer> swapFramebuffers; // ties render attachments to image views in the swapchain
     void createFramebuffers();
@@ -225,7 +189,7 @@ private:
 	// this scene is set up so that the camera is in -Z looking towards +Z.
     cam::camera c;
 	
-    void updateUniformBuffer(uint32_t imageIndex);
+    void updateFrame(uint32_t imageIndex);
 
 	size_t currFrame = 0;
 
