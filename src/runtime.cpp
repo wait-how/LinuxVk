@@ -7,9 +7,9 @@
 #include "main.hpp"
 
 void appvk::createSyncs() {
-    imageAvailSems.resize(framesInFlight, VK_NULL_HANDLE);
-    renderDoneSems.resize(framesInFlight, VK_NULL_HANDLE);
-    inFlightFences.resize(framesInFlight, VK_NULL_HANDLE);
+    imageAvailSems.resize(options::framesInFlight, VK_NULL_HANDLE);
+    renderDoneSems.resize(options::framesInFlight, VK_NULL_HANDLE);
+    inFlightFences.resize(options::framesInFlight, VK_NULL_HANDLE);
     imagesInFlight = std::vector<VkFence>(swapImages.size(), VK_NULL_HANDLE); // this needs to be re-created on a window resize
     
     VkSemaphoreCreateInfo createInfo{};
@@ -19,7 +19,7 @@ void appvk::createSyncs() {
     fCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    for (unsigned int i = 0; i < framesInFlight; i++) {
+    for (unsigned int i = 0; i < options::framesInFlight; i++) {
         VkResult r1 = vkCreateSemaphore(dev, &createInfo, nullptr, &imageAvailSems[i]);
         VkResult r2 = vkCreateSemaphore(dev, &createInfo, nullptr, &renderDoneSems[i]);
         VkResult r3 = vkCreateFence(dev, &fCreateInfo, nullptr, &inFlightFences[i]);

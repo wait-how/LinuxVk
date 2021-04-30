@@ -117,7 +117,8 @@ private:
     void createDescriptorPool();
 
     std::vector<VkDescriptorSet> descSet;
-    void allocDescriptorSets(std::vector<VkDescriptorSet>& dSet);
+    void allocDescriptorSets(VkDescriptorPool pool, std::vector<VkDescriptorSet>& dSet, VkDescriptorSetLayout layout);
+	void allocDescriptorSetUniform(std::vector<VkDescriptorSet>& dSet);
 	void allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex);
 
 	std::vector<char> readFile(std::string_view path);
@@ -174,8 +175,6 @@ private:
 	uint32_t grassVertices;
 	uint32_t grassIndices;
 	void allocRenderCmdBuffers();
-
-	constexpr static unsigned int framesInFlight = 2;
 
 	// swapchain image acquisition requires a binary semaphore since it might be hard for implementations to do timeline semaphores
 	std::vector<VkSemaphore> imageAvailSems; // use seperate semaphores per frame so we can send >1 frame at once

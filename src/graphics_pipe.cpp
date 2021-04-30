@@ -9,7 +9,7 @@ void appvk::createRenderPass() {
     attachments[0].format = swapFormat; // format from swapchain image
     attachments[0].samples = msaaSamples;
     attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED; // layout of image before render pass - don't care since we'll be clearing it anyways

@@ -147,10 +147,11 @@ void basevk::createInstance() {
     
     VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{}; // outside if statement to avoid getting deallocated early
 
-    // enable sync validation to detect missing/incorrect barriers between operations
+    
     VkValidationFeaturesEXT validFeatures{};
-    VkValidationFeatureEnableEXT feats[] = {
-        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT
+    std::array<VkValidationFeatureEnableEXT, 2> feats = {
+        VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT, // enable sync validation to detect missing/incorrect barriers between operations
+        // VK_VALIDATION_FEATURE_ENABLE_BEST_PRACTICES_EXT // enable warnings for potential performance problems
     };
 
     if (options::debug) {
@@ -160,8 +161,8 @@ void basevk::createInstance() {
         populateDebugMessenger(debugCreateInfo);
 
         validFeatures.sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT;
-        validFeatures.enabledValidationFeatureCount = 1;
-        validFeatures.pEnabledValidationFeatures = feats;
+        validFeatures.enabledValidationFeatureCount = feats.size();
+        validFeatures.pEnabledValidationFeatures = feats.data();
 
         // passing debugCreateInfo here so that our debug utils handle errors in createInstance or destroyInstance
         createInfo.pNext = &debugCreateInfo;

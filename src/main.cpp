@@ -4,6 +4,8 @@
 #include "vloader.hpp"
 #include "iloader.hpp"
 
+#include "options.hpp"
+
 #include <thread>
 #include <iomanip>
 
@@ -28,7 +30,8 @@ void appvk::recreateSwapChain() {
 	createFramebuffers();
 	createUniformBuffers();
 	createDescriptorPool();
-	allocDescriptorSets(descSet);
+	allocDescriptorSets(dPool, descSet, dSetLayout);
+	allocDescriptorSetUniform(descSet);
 	allocDescriptorSetTexture(descSet, tex);
 	allocRenderCmdBuffers();
 	createSyncs();
@@ -65,7 +68,8 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
 	createUniformBuffers();
 	createDescriptorPool();
-	allocDescriptorSets(descSet);
+	allocDescriptorSets(dPool, descSet, dSetLayout);
+	allocDescriptorSetUniform(descSet);
 
 	lv.join();
 
@@ -157,7 +161,7 @@ void appvk::drawFrame() {
 		throw std::runtime_error("cannot submit to queue!");
 	}
 
-	currFrame = (currFrame + 1) % framesInFlight;
+	currFrame = (currFrame + 1) % options::framesInFlight;
 }
 
 void appvk::run() {
@@ -187,14 +191,14 @@ appvk::~appvk() {
 
     vkDestroySampler(dev, tex.samp, nullptr);
     vkDestroyImageView(dev, tex.view, nullptr);
+	vkDestroyImage(dev, tex.im, nullptr);
     vkFreeMemory(dev, tex.mem, nullptr);
-    vkDestroyImage(dev, tex.im, nullptr);
 
+	vkDestroyBuffer(dev, index.buf, nullptr);
     vkFreeMemory(dev, index.mem, nullptr);
-    vkDestroyBuffer(dev, index.buf, nullptr);
 
-    vkFreeMemory(dev, vert.mem, nullptr);
     vkDestroyBuffer(dev, vert.buf, nullptr);
+	vkFreeMemory(dev, vert.mem, nullptr);
 
     vkDestroyDevice(dev, nullptr);
     vkDestroySurfaceKHR(instance, surf, nullptr);

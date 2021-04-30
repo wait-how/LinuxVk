@@ -7,6 +7,8 @@ namespace options {
     // graphics options
     constexpr unsigned int msaaSamples = 2;
 
+    constexpr unsigned int framesInFlight = 2;
+
     // dev options
     constexpr static bool verbose = false;
 

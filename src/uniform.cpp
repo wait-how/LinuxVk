@@ -58,12 +58,12 @@ void appvk::createDescriptorPool() {
     }
 }
 
-void appvk::allocDescriptorSets(std::vector<VkDescriptorSet>& dSet) {
-    std::vector<VkDescriptorSetLayout> dLayout(swapImages.size(), dSetLayout);
+void appvk::allocDescriptorSets(VkDescriptorPool pool, std::vector<VkDescriptorSet>& dSet, VkDescriptorSetLayout layout) {
+    std::vector<VkDescriptorSetLayout> dLayout(swapImages.size(), layout);
 
     VkDescriptorSetAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    allocInfo.descriptorPool = dPool;
+    allocInfo.descriptorPool = pool;
     allocInfo.descriptorSetCount = swapImages.size();
     allocInfo.pSetLayouts = dLayout.data();
     
@@ -71,7 +71,9 @@ void appvk::allocDescriptorSets(std::vector<VkDescriptorSet>& dSet) {
     if (vkAllocateDescriptorSets(dev, &allocInfo, dSet.data()) != VK_SUCCESS) {
         throw std::runtime_error("cannot create descriptor set!");
     }
+}
 
+void appvk::allocDescriptorSetUniform(std::vector<VkDescriptorSet>& dSet) {
     for (size_t i = 0; i < swapImages.size(); i++) {
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = mvpBuffers[i];

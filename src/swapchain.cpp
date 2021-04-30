@@ -120,7 +120,7 @@ void appvk::createSwapViews() {
 
 void appvk::cleanupSwapChain() {
 
-    for (unsigned int i = 0; i < framesInFlight; i++){
+    for (unsigned int i = 0; i < options::framesInFlight; i++){
         vkDestroySemaphore(dev, imageAvailSems[i], nullptr);
         vkDestroySemaphore(dev, renderDoneSems[i], nullptr);
         vkDestroyFence(dev, inFlightFences[i], nullptr);
@@ -129,16 +129,16 @@ void appvk::cleanupSwapChain() {
     vkFreeCommandBuffers(dev, cp, commandBuffers.size(), commandBuffers.data());
 
     vkDestroyImageView(dev, depth.view, nullptr);
-    vkFreeMemory(dev, depth.mem, nullptr);
     vkDestroyImage(dev, depth.im, nullptr);
+    vkFreeMemory(dev, depth.mem, nullptr);
 
     vkDestroyImageView(dev, ms.view, nullptr);
-    vkFreeMemory(dev, ms.mem, nullptr);
     vkDestroyImage(dev, ms.im, nullptr);
+    vkFreeMemory(dev, ms.mem, nullptr);
 
     for (size_t i = 0; i < swapImages.size(); i++) {
-        vkFreeMemory(dev, mvpMemories[i], nullptr);
         vkDestroyBuffer(dev, mvpBuffers[i], nullptr);
+        vkFreeMemory(dev, mvpMemories[i], nullptr);
     }
 
     vkDestroyDescriptorPool(dev, dPool, nullptr);
