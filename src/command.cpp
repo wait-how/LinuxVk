@@ -5,6 +5,7 @@ void appvk::createCommandPool() {
     
     VkCommandPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // allow ui command buffers to be reset
     createInfo.queueFamilyIndex = qi.graphics.value();
 
     if (vkCreateCommandPool(dev, &createInfo, nullptr, &cp) != VK_SUCCESS) {
@@ -61,43 +62,5 @@ void appvk::allocRenderCmdBuffers() {
         throw std::runtime_error("cannot create command buffers!");
     }
 
-    for (size_t i = 0; i < commandBuffers.size(); i++) {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        if (vkBeginCommandBuffer(commandBuffers[i], &beginInfo) != VK_SUCCESS) {
-            throw std::runtime_error("cannot begin recording command buffers!");
-        }
-
-        VkRenderPassBeginInfo rBeginInfo{};
-        rBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        rBeginInfo.renderPass = renderPass;
-        rBeginInfo.framebuffer = swapFramebuffers[i];
-        rBeginInfo.renderArea.offset = { 0, 0 };
-        rBeginInfo.renderArea.extent = swapExtent;
-
-        VkClearValue attachClearValues[2];
-        attachClearValues[0].color = { { 0.15, 0.15, 0.15, 1.0 } };
-        attachClearValues[1].depthStencil = {1.0, 0};
-        
-        rBeginInfo.clearValueCount = 2;
-        rBeginInfo.pClearValues = attachClearValues;
-
-        auto& cbuf = commandBuffers[i];
-        
-        // commands here respect submission order, but draw command pipeline stages can go out of order
-        vkCmdBeginRenderPass(cbuf, &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-        
-            VkDeviceSize offset[] = { 0 };
-            vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
-            vkCmdBindVertexBuffers(cbuf, 0, 1, &vert.buf, offset);
-            vkCmdBindIndexBuffer(cbuf, index.buf, 0, VK_INDEX_TYPE_UINT32);
-            vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &descSet[i], 0, nullptr);
-            vkCmdDrawIndexed(cbuf, numIndices, 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(cbuf);
-        
-        if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
-            throw std::runtime_error("cannot record into command buffer!");
-        }
-    }
+    // could record all command buffers here, but UI needs to be re-recorded every frame and I don't really want multiple render passes
 }

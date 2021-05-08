@@ -75,7 +75,15 @@
 			"typeindex": "cpp",
 			"typeinfo": "cpp",
 			"variant": "cpp"
-		}
+		},
+		"makefile.extensionOutputFolder": "./.vscode",
+		"makefile.launchConfigurations": [
+			{
+				"cwd": "/home/kneil/code/LinuxVk",
+				"binaryPath": "/home/kneil/code/LinuxVk/dbg",
+				"binaryArgs": []
+			}
+		]
 	},
 
 }

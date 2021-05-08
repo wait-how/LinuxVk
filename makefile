@@ -8,14 +8,20 @@ CXX := clang++
 LD := $(CXX)
 DB := lldb
 
-# directories to search for .cpp or .h files
-DIRS := gfx-support src
+# directories to search for .cpp files
+SRC_DIRS := gfx-support src imgui
+
+# directories to search for .h files
+INC_DIRS := $(SRC_DIRS) imgui/backends
+
+# including some manually specified sources since we can't build for every single target imgui offers
+MANUAL_SRCS := imgui/backends/imgui_impl_glfw.cpp imgui/backends/imgui_impl_vulkan.cpp
 
 # all source files
-SRCS := $(foreach dir,$(DIRS),$(wildcard $(dir)/*.cpp))
+SRCS := $(foreach dir,$(SRC_DIRS),$(wildcard $(dir)/*.cpp)) $(MANUAL_SRCS)
 
-# directories to search for includes (which are all source directories)
-INCS := $(foreach dir,$(DIRS),-I$(dir))
+# directories to search for includes (which may not be all source directories)
+INCS := $(foreach dir,$(INC_DIRS),-I$(dir))
 
 # create object files and dependancy files in hidden dirs
 OBJDIR := .obj

@@ -46,6 +46,11 @@ void basevk::createWindow(bool fullscreen) {
     glfwInit();
     
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+
+    if (!glfwVulkanSupported()) {
+        throw std::runtime_error("vulkan not supported!");
+    }
+
 	if (fullscreen) {
     	w = glfwCreateWindow(options::screenWidth, options::screenHeight, "demo", glfwGetPrimaryMonitor(), nullptr);
 	} else {

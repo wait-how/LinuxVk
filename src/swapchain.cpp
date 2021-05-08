@@ -78,7 +78,7 @@ void appvk::createSwapChain() {
     VkExtent2D e = chooseSwapExtent(sdet.cap);
     
     uint32_t numImages = sdet.cap.minImageCount + 1; // perf improvement - don't have to wait for the driver to complete stuff to continue rendering
-    numImages = std::max(numImages, sdet.cap.maxImageCount);
+    numImages = std::min(numImages, sdet.cap.maxImageCount);
 
     VkSwapchainCreateInfoKHR sInfo{};
     sInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
@@ -142,6 +142,7 @@ void appvk::cleanupSwapChain() {
     }
 
     vkDestroyDescriptorPool(dev, dPool, nullptr);
+    vkDestroyDescriptorPool(dev, uiPool, nullptr);
 
     for (auto framebuffer : swapFramebuffers) {
         vkDestroyFramebuffer(dev, framebuffer, nullptr);

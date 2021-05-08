@@ -159,4 +159,5 @@ void appvk::createLogicalDevice() {
     }
 
     vkGetDeviceQueue(dev, *(qi.graphics), 0, &gQueue); // creating a device also creates queues for it
+    gQueueFamily = *(qi.graphics);
 }

@@ -6,8 +6,11 @@
 
 #include "options.hpp"
 
+#include "imgui.h"
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_vulkan.h"
+
 #include <thread>
-#include <iomanip>
 
 void appvk::recreateSwapChain() {
 	int width, height;
@@ -23,18 +26,25 @@ void appvk::recreateSwapChain() {
 
 	createSwapChain();
 	createSwapViews();
+
 	createRenderPass();
 	createGraphicsPipeline();
+
 	createDepthImage();
 	createMultisampleImage();
 	createFramebuffers();
 	createUniformBuffers();
+
 	createDescriptorPool();
 	allocDescriptorSets(dPool, descSet, dSetLayout);
 	allocDescriptorSetUniform(descSet);
 	allocDescriptorSetTexture(descSet, tex);
+
 	allocRenderCmdBuffers();
+
 	createSyncs();
+
+	tieUILib();
 }
 
 appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
@@ -42,9 +52,9 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	vload::vloader g;
-	constexpr std::string_view vp = "models/teapot.obj";
-	std::thread lv = std::thread([&]() -> void { g.load(vp, true, true); });
+	vload::vloader obj;
+	constexpr std::string_view objstr = "models/teapot.obj";
+	std::thread lobj = std::thread([&]() -> void { obj.load(objstr, true, true); });
 
 	iload::iloader t;
 	constexpr std::string_view tp = "textures/grass/grass02 height 1k.jpg";
@@ -71,12 +81,12 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	allocDescriptorSets(dPool, descSet, dSetLayout);
 	allocDescriptorSetUniform(descSet);
 
-	lv.join();
+	lobj.join();
 
-	vert = createVertexBuffer(g.meshList[0].verts);
-	index = createIndexBuffer(g.meshList[0].indices);
-	cout << "loaded model " << vp << "\n";
-	numIndices = g.meshList[0].indices.size();
+	centerObj.vert = createVertexBuffer(obj.meshList[0].verts);
+	centerObj.index = createIndexBuffer(obj.meshList[0].indices);
+	cout << "loaded model " << objstr << "\n";
+	centerObj.indexCount = obj.meshList[0].indices.size();
 
 	lt.join();
 
@@ -90,6 +100,8 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	allocRenderCmdBuffers();
 
 	createSyncs();
+
+	tieUILib();
 }
 
 void appvk::drawFrame() {
@@ -120,6 +132,57 @@ void appvk::drawFrame() {
 	imagesInFlight[nextFrame] = inFlightFences[currFrame]; // this frame is using the fence at currFrame
 
 	updateFrame(nextFrame);
+
+	ImGui_ImplVulkan_NewFrame();
+	ImGui_ImplGlfw_NewFrame();
+	ImGui::NewFrame();
+
+	ImGui::Begin("Hello World!");
+	ImGui::Text("Hello, World!");
+	ImGui::End();
+
+	ImGui::Render();
+
+	VkCommandBufferBeginInfo beginInfo{};
+	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+	if (vkBeginCommandBuffer(commandBuffers[nextFrame], &beginInfo) != VK_SUCCESS) {
+		throw std::runtime_error("cannot begin recording command buffers!");
+	}
+
+	VkRenderPassBeginInfo rBeginInfo{};
+	rBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	rBeginInfo.renderPass = renderPass;
+	rBeginInfo.framebuffer = swapFramebuffers[nextFrame];
+	rBeginInfo.renderArea.offset = { 0, 0 };
+	rBeginInfo.renderArea.extent = swapExtent;
+
+	VkClearValue attachClearValues[2];
+	attachClearValues[0].color = { { 0.15, 0.15, 0.15, 1.0 } };
+	attachClearValues[1].depthStencil = {1.0, 0};
+	
+	rBeginInfo.clearValueCount = 2;
+	rBeginInfo.pClearValues = attachClearValues;
+
+	auto& cbuf = commandBuffers[nextFrame];
+	
+	// commands here respect submission order, but draw command pipeline stages can go out of order
+	vkCmdBeginRenderPass(cbuf, &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+	
+		VkDeviceSize offset[] = { 0 };
+		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
+		vkCmdBindVertexBuffers(cbuf, 0, 1, &centerObj.vert.buf, offset);
+		vkCmdBindIndexBuffer(cbuf, centerObj.index.buf, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &descSet[nextFrame], 0, nullptr);
+		vkCmdDrawIndexed(cbuf, centerObj.indexCount, 1, 0, 0, 0);
+
+		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cbuf);
+
+	vkCmdEndRenderPass(cbuf);
+	
+	if (vkEndCommandBuffer(commandBuffers[nextFrame]) != VK_SUCCESS) {
+		throw std::runtime_error("cannot record into command buffer!");
+	}
 
 	VkSubmitInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -194,14 +257,19 @@ appvk::~appvk() {
 	vkDestroyImage(dev, tex.im, nullptr);
     vkFreeMemory(dev, tex.mem, nullptr);
 
-	vkDestroyBuffer(dev, index.buf, nullptr);
-    vkFreeMemory(dev, index.mem, nullptr);
+	vkDestroyBuffer(dev, centerObj.index.buf, nullptr);
+    vkFreeMemory(dev, centerObj.index.mem, nullptr);
 
-    vkDestroyBuffer(dev, vert.buf, nullptr);
-	vkFreeMemory(dev, vert.mem, nullptr);
+    vkDestroyBuffer(dev, centerObj.vert.buf, nullptr);
+	vkFreeMemory(dev, centerObj.vert.mem, nullptr);
+
+	ImGui_ImplVulkan_Shutdown();
 
     vkDestroyDevice(dev, nullptr);
     vkDestroySurfaceKHR(instance, surf, nullptr);
+
+	ImGui_ImplGlfw_Shutdown();
+	ImGui::DestroyContext();
 }
 
 int main(int argc, char **argv) {

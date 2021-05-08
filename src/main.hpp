@@ -65,6 +65,7 @@ private:
 	
 	VkDevice dev = VK_NULL_HANDLE;
 	VkQueue gQueue = VK_NULL_HANDLE;
+	uint32_t gQueueFamily;
     void createLogicalDevice();
 	
 	VkSwapchainKHR swap = VK_NULL_HANDLE;
@@ -106,6 +107,12 @@ private:
 		VkSampler samp = VK_NULL_HANDLE;
 	};
 
+	struct object {
+		buffer vert;
+		buffer index;
+		unsigned int indexCount;
+	};
+
 	std::vector<VkBuffer> mvpBuffers;
 	std::vector<VkDeviceMemory> mvpMemories;
 	void createUniformBuffers();
@@ -114,6 +121,7 @@ private:
     void createDescriptorSetLayout();
 
     VkDescriptorPool dPool = VK_NULL_HANDLE;
+	VkDescriptorPool uiPool = VK_NULL_HANDLE;
     void createDescriptorPool();
 
     std::vector<VkDescriptorSet> descSet;
@@ -149,12 +157,11 @@ private:
     void copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_t height);
     void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
 
-	buffer vert;
+	object centerObj;
+
     buffer createVertexBuffer(std::vector<vformat::vertex>& v);
 	buffer createVertexBuffer(const std::vector<uint8_t>& verts);
 
-	buffer index;
-	unsigned int numIndices;
     buffer createIndexBuffer(const std::vector<uint32_t>& indices);
 
 	texture tex;
@@ -179,9 +186,11 @@ private:
 	// swapchain image acquisition requires a binary semaphore since it might be hard for implementations to do timeline semaphores
 	std::vector<VkSemaphore> imageAvailSems; // use seperate semaphores per frame so we can send >1 frame at once
 	std::vector<VkSemaphore> renderDoneSems;
-	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the next one
+	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the 1 one
 	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
     void createSyncs();
+
+	void tieUILib();
 
     void recreateSwapChain();
 
@@ -190,7 +199,7 @@ private:
 	
     void updateFrame(uint32_t imageIndex);
 
-	size_t currFrame = 0;
+	uint32_t currFrame = 0;
 
 	void drawFrame();
 
