@@ -44,10 +44,17 @@ void appvk::recreateSwapChain() {
 
 	createSyncs();
 
-	tieUILib();
+	ImGui_ImplVulkan_Shutdown();
+	initVulkanUI();
 }
 
 appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
+
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO();
+	io.FontGlobalScale = 1.5f;
+
+	ImGui_ImplGlfw_InitForVulkan(w, false);
 
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -61,7 +68,7 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	std::thread lt = std::thread([&]() -> void { t.load(tp, false); });
 
 	createSurface();
-	pickPhysicalDevice(nvidia);
+	pickPhysicalDevice(any);
 	createLogicalDevice();
 
 	createSwapChain();
@@ -101,7 +108,7 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
 	createSyncs();
 
-	tieUILib();
+	initVulkanUI();
 }
 
 void appvk::drawFrame() {
@@ -137,9 +144,20 @@ void appvk::drawFrame() {
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 
-	ImGui::Begin("Hello World!");
-	ImGui::Text("Hello, World!");
-	ImGui::End();
+	if (ImGui::Begin("demo stats")) {
+		// render ui if window is not clipped or hidden for some reason
+		using namespace std::chrono;
+    	static auto last = high_resolution_clock::now();
+    	auto current = high_resolution_clock::now();
+    	float time = duration<float, seconds::period>(current - last).count();
+    	last = current;
+
+		ImGui::Text("screen dimensions: %dx%d", options::screenWidth, options::screenHeight);
+		ImGui::Text("msaa samples: %d", options::msaaSamples);
+		ImGui::Text("frame time: %.2f ms (%.2f fps)", time * 1000, 1.0f / time);
+	}
+
+	ImGui::End(); // must be called regardless of begin() return value
 
 	ImGui::Render();
 

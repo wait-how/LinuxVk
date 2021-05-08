@@ -190,8 +190,8 @@ private:
 	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
     void createSyncs();
 
-	void tieUILib();
-
+	void initVulkanUI();
+	
     void recreateSwapChain();
 
 	// this scene is set up so that the camera is in -Z looking towards +Z.

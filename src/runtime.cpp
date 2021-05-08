@@ -31,16 +31,6 @@ void appvk::createSyncs() {
 }
 
 void appvk::updateFrame(uint32_t imageIndex) {
-    using namespace std::chrono;
-    static auto last = high_resolution_clock::now();
-    auto current = high_resolution_clock::now();
-    float time = duration<float, seconds::period>(current - last).count();
-    last = current;
-
-    std::stringstream title;
-    title << std::setprecision(2) << "demo - " << time << " ms (" << 1 / time << " fps)";
-    glfwSetWindowTitle(w, title.str().data());
-
     ubo u;
     u.model = glm::mat4(1.0f);
     u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));

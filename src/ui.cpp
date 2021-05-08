@@ -6,13 +6,9 @@
 
 #include "options.hpp"
 
-void appvk::tieUILib() {
-    ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-
-	ImGui_ImplGlfw_InitForVulkan(w, false);
-
-    // creating a whole new pool of descriptors for imgui
+// seperate from generic ui init so we only rebuild the vulkan part on a window resize
+void appvk::initVulkanUI() {	
+	// creating a whole new pool of descriptors for imgui
     // (not sure what these correspond to, but set up in example vulkan code...) 
 	constexpr size_t poolElems = 11;
 	VkDescriptorPoolSize poolSizes[poolElems] =
@@ -39,7 +35,7 @@ void appvk::tieUILib() {
 	if (vkCreateDescriptorPool(dev, &poolCreateInfo, nullptr, &uiPool) != VK_SUCCESS) {
         throw std::runtime_error("cannot create ui descriptor pool!");
     }
-	
+
     ImGui_ImplVulkan_InitInfo initInfo{};
     initInfo.Instance = instance;
     initInfo.PhysicalDevice = pdev;
