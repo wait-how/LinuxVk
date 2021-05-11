@@ -8,6 +8,9 @@
 
 // seperate from generic ui init so we only rebuild the vulkan part on a window resize
 void appvk::initVulkanUI() {	
+
+	IMGUI_CHECKVERSION(); // make sure imgui is set up properly
+
 	// creating a whole new pool of descriptors for imgui
     // (not sure what these correspond to, but set up in example vulkan code...) 
 	constexpr size_t poolElems = 11;

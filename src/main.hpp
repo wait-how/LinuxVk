@@ -117,6 +117,7 @@ private:
 	std::vector<VkDeviceMemory> mvpMemories;
 	void createUniformBuffers();
 
+	constexpr static unsigned int numMaps = 2;
     VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
     void createDescriptorSetLayout();
 
@@ -127,7 +128,7 @@ private:
     std::vector<VkDescriptorSet> descSet;
     void allocDescriptorSets(VkDescriptorPool pool, std::vector<VkDescriptorSet>& dSet, VkDescriptorSetLayout layout);
 	void allocDescriptorSetUniform(std::vector<VkDescriptorSet>& dSet);
-	void allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex);
+	void allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex, size_t index);
 
 	std::vector<char> readFile(std::string_view path);
     VkShaderModule createShaderModule(const std::vector<char>& spv);
@@ -165,7 +166,8 @@ private:
     buffer createIndexBuffer(const std::vector<uint32_t>& indices);
 
 	texture tex;
-	texture createTextureImage(int width, int height, const uint8_t* data);
+	texture norm;
+	texture createTextureImage(int width, int height, const uint8_t* data, bool makeMips = true);
 
     VkSampler createSampler(unsigned int mipLevels);
 	void generateMipmaps(VkImage image, VkFormat format, unsigned int width, unsigned int height, unsigned int levels);

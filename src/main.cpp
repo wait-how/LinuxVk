@@ -6,6 +6,8 @@
 
 #include "options.hpp"
 
+// config location from inside imgui folder
+#define IMGUI_USER_CONFIG "../src/imgui_cfg.hpp"
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
@@ -38,7 +40,8 @@ void appvk::recreateSwapChain() {
 	createDescriptorPool();
 	allocDescriptorSets(dPool, descSet, dSetLayout);
 	allocDescriptorSetUniform(descSet);
-	allocDescriptorSetTexture(descSet, tex);
+	allocDescriptorSetTexture(descSet, tex, 0);
+	allocDescriptorSetTexture(descSet, norm, 1);
 
 	allocRenderCmdBuffers();
 
@@ -50,6 +53,7 @@ void appvk::recreateSwapChain() {
 
 appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
+	IMGUI_CHECKVERSION(); // make sure imgui is set up properly
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
 	io.FontGlobalScale = 1.5f;
@@ -61,11 +65,15 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
 	vload::vloader obj;
 	constexpr std::string_view objstr = "models/teapot.obj";
-	std::thread lobj = std::thread([&]() -> void { obj.load(objstr, true, true); });
+	std::thread lobj = std::thread([&]() -> void { obj.load(objstr, true, true, true); });
 
-	iload::iloader t;
-	constexpr std::string_view tp = "textures/grass/grass02 height 1k.jpg";
-	std::thread lt = std::thread([&]() -> void { t.load(tp, false); });
+	iload::iloader d;
+	constexpr std::string_view dp = "textures/grass/grass02 diffuse 1k.jpg";
+	std::thread dt = std::thread([&]() -> void { d.load(dp, false); });
+
+	iload::iloader n;
+	constexpr std::string_view np = "textures/grass/grass02 normal 1k.jpg";
+	std::thread nt = std::thread([&]() -> void { n.load(np, false); });
 
 	createSurface();
 	pickPhysicalDevice(any);
@@ -95,14 +103,23 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	cout << "loaded model " << objstr << "\n";
 	centerObj.indexCount = obj.meshList[0].indices.size();
 
-	lt.join();
+	dt.join();
 
-	tex = createTextureImage(t.width, t.height, t.data);
+	tex = createTextureImage(d.width, d.height, d.data);
 	tex.view = createImageView(tex.im, VK_FORMAT_R8G8B8A8_SRGB, tex.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
 	tex.samp = createSampler(tex.mipLevels);
-	cout << "loaded texture " << tp << "\n";
+	cout << "loaded texture " << dp << "\n";
 
-	allocDescriptorSetTexture(descSet, tex);
+	allocDescriptorSetTexture(descSet, tex, 0);
+
+	nt.join();
+
+	norm = createTextureImage(n.width, n.height, n.data, false);
+	norm.view = createImageView(norm.im, VK_FORMAT_R8G8B8A8_SRGB, norm.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+	norm.samp = createSampler(norm.mipLevels);
+	cout << "loaded texture " << np << "\n";
+
+	allocDescriptorSetTexture(descSet, norm, 1);
 
 	allocRenderCmdBuffers();
 
@@ -274,6 +291,11 @@ appvk::~appvk() {
     vkDestroyImageView(dev, tex.view, nullptr);
 	vkDestroyImage(dev, tex.im, nullptr);
     vkFreeMemory(dev, tex.mem, nullptr);
+
+	vkDestroySampler(dev, norm.samp, nullptr);
+    vkDestroyImageView(dev, norm.view, nullptr);
+	vkDestroyImage(dev, norm.im, nullptr);
+    vkFreeMemory(dev, norm.mem, nullptr);
 
 	vkDestroyBuffer(dev, centerObj.index.buf, nullptr);
     vkFreeMemory(dev, centerObj.index.mem, nullptr);

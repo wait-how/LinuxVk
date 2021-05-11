@@ -116,7 +116,7 @@ void appvk::createGraphicsPipeline() {
     bindDesc.stride = sizeof(vformat::vertex);
     bindDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-    std::array<VkVertexInputAttributeDescription, 3> attrDesc;
+    std::array<VkVertexInputAttributeDescription, 4> attrDesc;
     for (size_t i = 0; i < attrDesc.size(); i++) {
         attrDesc[i].location = i;
         attrDesc[i].binding = 0;
@@ -126,6 +126,7 @@ void appvk::createGraphicsPipeline() {
     attrDesc[0].format = VK_FORMAT_R32G32B32_SFLOAT;
     attrDesc[1].format = VK_FORMAT_R32G32B32_SFLOAT;
     attrDesc[2].format = VK_FORMAT_R32G32_SFLOAT;
+    attrDesc[3].format = VK_FORMAT_R32G32B32_SFLOAT;
     
     VkPipelineVertexInputStateCreateInfo vinCreateInfo{};
     vinCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -324,9 +325,14 @@ appvk::buffer appvk::createIndexBuffer(const std::vector<uint32_t>& indices) {
     return local;
 }
 
-appvk::texture appvk::createTextureImage(int width, int height, const unsigned char* data) {
+appvk::texture appvk::createTextureImage(int width, int height, const unsigned char* data, bool makeMips) {
 
-    unsigned int mipLevels = floor(log2(std::max(width, height))) + 1;
+    unsigned int mipLevels;
+    if (makeMips) {
+        mipLevels = floor(log2(std::max(width, height))) + 1;
+    } else {
+        mipLevels = 1;
+    }
     
     VkDeviceSize imageSize = width * height * 4;
 
@@ -340,21 +346,21 @@ appvk::texture appvk::createTextureImage(int width, int height, const unsigned c
     vkUnmapMemory(dev, staging.mem);
 
     // used as a src when blitting to make mipmaps
-    tex = {createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, mipLevels, VK_SAMPLE_COUNT_1_BIT,
+    texture t = {createImage(width, height, VK_FORMAT_R8G8B8A8_SRGB, mipLevels, VK_SAMPLE_COUNT_1_BIT,
         VK_IMAGE_TILING_OPTIMAL,
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)};
     
-    transitionImageLayout(tex, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    copyBufferToImage(staging.buf, tex.im, uint32_t(width), uint32_t(height));
+    transitionImageLayout(t, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    copyBufferToImage(staging.buf, t.im, uint32_t(width), uint32_t(height));
 
     vkFreeMemory(dev, staging.mem, nullptr);
     vkDestroyBuffer(dev, staging.buf, nullptr);
 
-    generateMipmaps(tex.im, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
+    generateMipmaps(t.im, VK_FORMAT_R8G8B8A8_SRGB, width, height, mipLevels);
 
-    return tex;
+    return t;
 }
 
 void appvk::createDepthImage() {

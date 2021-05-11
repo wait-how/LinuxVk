@@ -5,3 +5,4 @@ check
 .obj
 .dep
 .spv
+imgui.ini
