@@ -12,8 +12,6 @@
 #include "imgui_impl_glfw.h"
 #include "imgui_impl_vulkan.h"
 
-#include <thread>
-
 void appvk::recreateSwapChain() {
 	int width, height;
 	glfwGetFramebufferSize(w, &width, &height);
@@ -40,8 +38,9 @@ void appvk::recreateSwapChain() {
 	createDescriptorPool();
 	allocDescriptorSets(dPool, descSet, dSetLayout);
 	allocDescriptorSetUniform(descSet);
-	allocDescriptorSetTexture(descSet, tex, 0);
+	allocDescriptorSetTexture(descSet, diff, 0);
 	allocDescriptorSetTexture(descSet, norm, 1);
+	allocDescriptorSetTexture(descSet, disp, 2);
 
 	allocRenderCmdBuffers();
 
@@ -63,17 +62,21 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	// disable and center cursor
 	// glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 
-	vload::vloader obj;
-	constexpr std::string_view objstr = "models/teapot.obj";
-	std::thread lobj = std::thread([&]() -> void { obj.load(objstr, true, true, true); });
+	constexpr std::string_view objstr = "models/sphere.obj";
+	vload::vloader obj(objstr, true, true, true);
+	obj.dispatch();
 
-	iload::iloader d;
 	constexpr std::string_view dp = "textures/grass/grass02 diffuse 1k.jpg";
-	std::thread dt = std::thread([&]() -> void { d.load(dp, false); });
-
-	iload::iloader n;
+	iload::iloader d(dp, false);
+	d.dispatch();
+	
 	constexpr std::string_view np = "textures/grass/grass02 normal 1k.jpg";
-	std::thread nt = std::thread([&]() -> void { n.load(np, false); });
+	iload::iloader n(np, false);
+	n.dispatch();
+
+	constexpr std::string_view hp = "textures/grass/grass02 height 1k.jpg";
+	iload::iloader h(hp, false);
+	h.dispatch();
 
 	createSurface();
 	pickPhysicalDevice(any);
@@ -96,30 +99,39 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	allocDescriptorSets(dPool, descSet, dSetLayout);
 	allocDescriptorSetUniform(descSet);
 
-	lobj.join();
+	obj.join();
 
 	centerObj.vert = createVertexBuffer(obj.meshList[0].verts);
 	centerObj.index = createIndexBuffer(obj.meshList[0].indices);
 	cout << "loaded model " << objstr << "\n";
 	centerObj.indexCount = obj.meshList[0].indices.size();
 
-	dt.join();
+	d.join();
 
-	tex = createTextureImage(d.width, d.height, d.data);
-	tex.view = createImageView(tex.im, VK_FORMAT_R8G8B8A8_SRGB, tex.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-	tex.samp = createSampler(tex.mipLevels);
+	diff = createTextureImage(d.width, d.height, d.data);
+	diff.view = createImageView(diff.im, VK_FORMAT_R8G8B8A8_SRGB, diff.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+	diff.samp = createSampler(diff.mipLevels);
 	cout << "loaded texture " << dp << "\n";
 
-	allocDescriptorSetTexture(descSet, tex, 0);
+	allocDescriptorSetTexture(descSet, diff, 0);
 
-	nt.join();
+	n.join();
 
-	norm = createTextureImage(n.width, n.height, n.data, false);
+	norm = createTextureImage(n.width, n.height, n.data);
 	norm.view = createImageView(norm.im, VK_FORMAT_R8G8B8A8_SRGB, norm.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
 	norm.samp = createSampler(norm.mipLevels);
 	cout << "loaded texture " << np << "\n";
 
 	allocDescriptorSetTexture(descSet, norm, 1);
+
+	h.join();
+
+	disp = createTextureImage(h.width, h.height, h.data);
+	disp.view = createImageView(disp.im, VK_FORMAT_R8G8B8A8_SRGB, disp.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+	disp.samp = createSampler(disp.mipLevels);
+	cout << "loaded texture " << hp << "\n";
+
+	allocDescriptorSetTexture(descSet, disp, 2);
 
 	allocRenderCmdBuffers();
 
@@ -172,6 +184,7 @@ void appvk::drawFrame() {
 		ImGui::Text("screen dimensions: %dx%d", options::screenWidth, options::screenHeight);
 		ImGui::Text("msaa samples: %d", options::msaaSamples);
 		ImGui::Text("frame time: %.2f ms (%.2f fps)", time * 1000, 1.0f / time);
+		ImGui::Text("camera pos: (%.2f, %.2f, %.2f)", c.pos.x, c.pos.y, c.pos.z);
 	}
 
 	ImGui::End(); // must be called regardless of begin() return value
@@ -287,15 +300,12 @@ appvk::~appvk() {
 
     vkDestroyCommandPool(dev, cp, nullptr);
 
-    vkDestroySampler(dev, tex.samp, nullptr);
-    vkDestroyImageView(dev, tex.view, nullptr);
-	vkDestroyImage(dev, tex.im, nullptr);
-    vkFreeMemory(dev, tex.mem, nullptr);
-
-	vkDestroySampler(dev, norm.samp, nullptr);
-    vkDestroyImageView(dev, norm.view, nullptr);
-	vkDestroyImage(dev, norm.im, nullptr);
-    vkFreeMemory(dev, norm.mem, nullptr);
+	for (texture t : maps) {
+		vkDestroySampler(dev, t.samp, nullptr);
+		vkDestroyImageView(dev, t.view, nullptr);
+		vkDestroyImage(dev, t.im, nullptr);
+		vkFreeMemory(dev, t.mem, nullptr);
+	}
 
 	vkDestroyBuffer(dev, centerObj.index.buf, nullptr);
     vkFreeMemory(dev, centerObj.index.mem, nullptr);

@@ -1,4 +1,4 @@
-#version 460
+#version 460 core
 // use GL_EXT_shader_explicit_arithmetic_types for float16
 
 // NDCs are (-1, -1) in top left to (1, 1) in bottom right

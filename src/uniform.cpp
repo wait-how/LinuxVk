@@ -24,7 +24,7 @@ void appvk::createDescriptorSetLayout() {
     bindings[1].binding = 1;
     // images and samplers can actually be bound separately!
     bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    bindings[1].descriptorCount = numMaps; // descriptors for different kinds of maps
+    bindings[1].descriptorCount = maps.size(); // descriptors for different kinds of maps
     bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
     VkDescriptorSetLayoutCreateInfo createInfo{};
@@ -44,7 +44,7 @@ void appvk::createDescriptorPool() {
     poolSizes[0].descriptorCount = swapImages.size();
 
     poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    poolSizes[1].descriptorCount = numMaps * swapImages.size();
+    poolSizes[1].descriptorCount = maps.size() * swapImages.size();
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;

@@ -33,6 +33,7 @@ void appvk::createSyncs() {
 void appvk::updateFrame(uint32_t imageIndex) {
     ubo u;
     u.model = glm::mat4(1.0f);
+    // u.model = glm::rotate(u.model, glm::radians((float)glfwGetTime() * 20), glm::vec3(1.0f));
     u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
     u.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 

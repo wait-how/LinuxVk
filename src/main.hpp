@@ -117,7 +117,6 @@ private:
 	std::vector<VkDeviceMemory> mvpMemories;
 	void createUniformBuffers();
 
-	constexpr static unsigned int numMaps = 2;
     VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
     void createDescriptorSetLayout();
 
@@ -164,9 +163,12 @@ private:
 	buffer createVertexBuffer(const std::vector<uint8_t>& verts);
 
     buffer createIndexBuffer(const std::vector<uint32_t>& indices);
+	
+	std::array<texture, 3> maps;
+	texture& diff = maps[0];
+	texture& norm = maps[1];
+	texture& disp = maps[2];
 
-	texture tex;
-	texture norm;
 	texture createTextureImage(int width, int height, const uint8_t* data, bool makeMips = true);
 
     VkSampler createSampler(unsigned int mipLevels);
