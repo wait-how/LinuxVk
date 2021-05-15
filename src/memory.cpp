@@ -55,3 +55,39 @@ appvk::buffer appvk::createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, V
 
     return buf;
 }
+
+appvk::bufslab appvk::createBuffers(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props, unsigned int count) {
+    bufslab s = { std::vector<VkBuffer>(count) };
+
+    VkBufferCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    createInfo.size = size;
+    createInfo.usage = usage;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    for (VkBuffer& buf : s.bufs) {
+        if (vkCreateBuffer(dev, &createInfo, nullptr, &buf) != VK_SUCCESS) {
+            throw std::runtime_error("cannot create buffer!");
+        }
+    }
+
+    VkMemoryRequirements mreq{};
+    vkGetBufferMemoryRequirements(dev, s.bufs[0], &mreq); // all buffers should have the same memory requirements
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = mreq.size * count;
+    allocInfo.memoryTypeIndex = findMemoryType(mreq.memoryTypeBits, props);
+
+    if (vkAllocateMemory(dev, &allocInfo, nullptr, &s.mem) != VK_SUCCESS) {
+        throw std::runtime_error("cannot allocate buffer memory!");
+    }
+
+    for (size_t i = 0; i < count; i++) {
+        vkBindBufferMemory(dev, s.bufs[i], s.mem, mreq.size * i);
+    }
+
+    s.elemSize = mreq.size;
+
+    return s;
+}

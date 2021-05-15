@@ -36,11 +36,19 @@ void appvk::recreateSwapChain() {
 	createUniformBuffers();
 
 	createDescriptorPool();
-	allocDescriptorSets(dPool, descSet, dSetLayout);
-	allocDescriptorSetUniform(descSet);
-	allocDescriptorSetTexture(descSet, diff, 0);
-	allocDescriptorSetTexture(descSet, norm, 1);
-	allocDescriptorSetTexture(descSet, disp, 2);
+
+	for (thing& t : things) {
+		allocDescriptorSets(dPool, t);
+		allocDescriptorSetUniform(t);
+	}
+
+	allocDescriptorSetTexture(t, t.diff, 0);
+	allocDescriptorSetTexture(t, t.norm, 1);
+	allocDescriptorSetTexture(t, t.disp, 2);
+
+	allocDescriptorSetTexture(flr, flr.diff, 0);
+	allocDescriptorSetTexture(flr, flr.norm, 1);
+	allocDescriptorSetTexture(flr, flr.disp, 2);
 
 	allocRenderCmdBuffers();
 
@@ -66,17 +74,23 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	vload::vloader obj(objstr, true, true, true);
 	obj.dispatch();
 
-	constexpr std::string_view dp = "textures/grass/grass02 diffuse 1k.jpg";
-	iload::iloader d(dp, false);
-	d.dispatch();
-	
-	constexpr std::string_view np = "textures/grass/grass02 normal 1k.jpg";
-	iload::iloader n(np, false);
-	n.dispatch();
+	constexpr std::string_view fstr = "models/cube.obj";
+	vload::vloader f(fstr, true, true, true);
+	f.dispatch();
 
-	constexpr std::string_view hp = "textures/grass/grass02 height 1k.jpg";
-	iload::iloader h(hp, false);
-	h.dispatch();
+	std::array<iload::iloader, 6> loaders = {
+		iload::iloader("textures/grass/diffuse.jpg", false),
+		iload::iloader("textures/grass/normal.jpg", false),
+		iload::iloader("textures/grass/height.jpg", false),
+
+		iload::iloader("textures/grass2/diffuse.jpg", false),
+		iload::iloader("textures/grass2/normal.jpg", false),
+		iload::iloader("textures/grass2/height.jpg", false),
+	};
+
+	for (auto& ld : loaders) {
+		ld.dispatch();
+	}
 
 	createSurface();
 	pickPhysicalDevice(any);
@@ -96,42 +110,40 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 
 	createUniformBuffers();
 	createDescriptorPool();
-	allocDescriptorSets(dPool, descSet, dSetLayout);
-	allocDescriptorSetUniform(descSet);
+
+	for (thing& t : things) {
+		allocDescriptorSets(dPool, t);
+		allocDescriptorSetUniform(t);
+	}
 
 	obj.join();
 
-	centerObj.vert = createVertexBuffer(obj.meshList[0].verts);
-	centerObj.index = createIndexBuffer(obj.meshList[0].indices);
+	t.vert = createVertexBuffer(obj.meshList[0].verts);
+	t.index = createIndexBuffer(obj.meshList[0].indices);
 	cout << "loaded model " << objstr << "\n";
-	centerObj.indexCount = obj.meshList[0].indices.size();
+	t.indices = obj.meshList[0].indices.size();
 
-	d.join();
+	f.join();
+	flr.vert = createVertexBuffer(f.meshList[0].verts);
+	flr.index = createIndexBuffer(f.meshList[0].indices);
+	cout << "loaded model " << fstr << "\n\n";
+	flr.indices = f.meshList[0].indices.size();
 
-	diff = createTextureImage(d.width, d.height, d.data);
-	diff.view = createImageView(diff.im, VK_FORMAT_R8G8B8A8_SRGB, diff.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-	diff.samp = createSampler(diff.mipLevels);
-	cout << "loaded texture " << dp << "\n";
+	for (size_t i = 0; i < loaders.size(); i++) {
+		loaders[i].join();
 
-	allocDescriptorSetTexture(descSet, diff, 0);
+		size_t thing_idx = i / 3;
+		thing& t = things[thing_idx];
 
-	n.join();
+		size_t map_idx = i % 3;
+		t.maps[map_idx] = createTextureImage(loaders[i].width, loaders[i].height, loaders[i].data);
+		t.maps[map_idx].view = createImageView(t.maps[map_idx].im, VK_FORMAT_R8G8B8A8_SRGB, t.maps[map_idx].mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
+		t.maps[map_idx].samp = createSampler(t.maps[map_idx].mipLevels);
 
-	norm = createTextureImage(n.width, n.height, n.data);
-	norm.view = createImageView(norm.im, VK_FORMAT_R8G8B8A8_SRGB, norm.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-	norm.samp = createSampler(norm.mipLevels);
-	cout << "loaded texture " << np << "\n";
+		cout << "loaded texture " << loaders[i].path << "\n";
 
-	allocDescriptorSetTexture(descSet, norm, 1);
-
-	h.join();
-
-	disp = createTextureImage(h.width, h.height, h.data);
-	disp.view = createImageView(disp.im, VK_FORMAT_R8G8B8A8_SRGB, disp.mipLevels, VK_IMAGE_ASPECT_COLOR_BIT);
-	disp.samp = createSampler(disp.mipLevels);
-	cout << "loaded texture " << hp << "\n";
-
-	allocDescriptorSetTexture(descSet, disp, 2);
+		allocDescriptorSetTexture(t, t.maps[map_idx], thing_idx);
+	}
 
 	allocRenderCmdBuffers();
 
@@ -169,33 +181,11 @@ void appvk::drawFrame() {
 
 	updateFrame(nextFrame);
 
-	ImGui_ImplVulkan_NewFrame();
-	ImGui_ImplGlfw_NewFrame();
-	ImGui::NewFrame();
-
-	if (ImGui::Begin("demo stats")) {
-		// render ui if window is not clipped or hidden for some reason
-		using namespace std::chrono;
-    	static auto last = high_resolution_clock::now();
-    	auto current = high_resolution_clock::now();
-    	float time = duration<float, seconds::period>(current - last).count();
-    	last = current;
-
-		ImGui::Text("screen dimensions: %dx%d", options::screenWidth, options::screenHeight);
-		ImGui::Text("msaa samples: %d", options::msaaSamples);
-		ImGui::Text("frame time: %.2f ms (%.2f fps)", time * 1000, 1.0f / time);
-		ImGui::Text("camera pos: (%.2f, %.2f, %.2f)", c.pos.x, c.pos.y, c.pos.z);
-	}
-
-	ImGui::End(); // must be called regardless of begin() return value
-
-	ImGui::Render();
-
 	VkCommandBufferBeginInfo beginInfo{};
 	beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 	if (vkBeginCommandBuffer(commandBuffers[nextFrame], &beginInfo) != VK_SUCCESS) {
-		throw std::runtime_error("cannot begin recording command buffers!");
+		throw std::runtime_error("cannot begin recording command buffer!");
 	}
 
 	VkRenderPassBeginInfo rBeginInfo{};
@@ -205,12 +195,12 @@ void appvk::drawFrame() {
 	rBeginInfo.renderArea.offset = { 0, 0 };
 	rBeginInfo.renderArea.extent = swapExtent;
 
-	VkClearValue attachClearValues[2];
+	std::array<VkClearValue, 2> attachClearValues;
 	attachClearValues[0].color = { { 0.15, 0.15, 0.15, 1.0 } };
 	attachClearValues[1].depthStencil = {1.0, 0};
 	
-	rBeginInfo.clearValueCount = 2;
-	rBeginInfo.pClearValues = attachClearValues;
+	rBeginInfo.clearValueCount = attachClearValues.size();
+	rBeginInfo.pClearValues = attachClearValues.data();
 
 	auto& cbuf = commandBuffers[nextFrame];
 	
@@ -218,11 +208,17 @@ void appvk::drawFrame() {
 	vkCmdBeginRenderPass(cbuf, &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	
 		VkDeviceSize offset[] = { 0 };
-		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipe);
-		vkCmdBindVertexBuffers(cbuf, 0, 1, &centerObj.vert.buf, offset);
-		vkCmdBindIndexBuffer(cbuf, centerObj.index.buf, 0, VK_INDEX_TYPE_UINT32);
-		vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeLayout, 0, 1, &descSet[nextFrame], 0, nullptr);
-		vkCmdDrawIndexed(cbuf, centerObj.indexCount, 1, 0, 0, 0);
+		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, t.pipe);
+		vkCmdBindVertexBuffers(cbuf, 0, 1, &t.vert.buf, offset);
+		vkCmdBindIndexBuffer(cbuf, t.index.buf, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, t.pipeLayout, 0, 1, &t.dsets[nextFrame], 0, nullptr);
+		vkCmdDrawIndexed(cbuf, t.indices, 1, 0, 0, 0);
+
+		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, flr.pipe);
+		vkCmdBindVertexBuffers(cbuf, 0, 1, &flr.vert.buf, offset);
+		vkCmdBindIndexBuffer(cbuf, flr.index.buf, 0, VK_INDEX_TYPE_UINT32);
+		vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, flr.pipeLayout, 0, 1, &flr.dsets[nextFrame], 0, nullptr);
+		vkCmdDrawIndexed(cbuf, flr.indices, 1, 0, 0, 0);
 
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cbuf);
 
@@ -235,11 +231,8 @@ void appvk::drawFrame() {
 	VkSubmitInfo si{};
 	si.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-	VkSemaphore renderBeginSems[] = { imageAvailSems[currFrame] };
-	VkSemaphore renderEndSems[] = { renderDoneSems[currFrame] };
-
 	si.waitSemaphoreCount = 1;
-	si.pWaitSemaphores = renderBeginSems;
+	si.pWaitSemaphores = &imageAvailSems[currFrame];
 
 	// imageAvailSem waits at this point in the pipeline
 	// NOTE: stages not covered by a semaphore may execute before the semaphore is signaled.
@@ -250,7 +243,7 @@ void appvk::drawFrame() {
 	si.pCommandBuffers = &commandBuffers[nextFrame];
 
 	si.signalSemaphoreCount = 1;
-	si.pSignalSemaphores = renderEndSems;
+	si.pSignalSemaphores = &renderDoneSems[currFrame];
 
 	vkResetFences(dev, 1, &inFlightFences[currFrame]); // has to be unsignaled for vkQueueSubmit
 	vkQueueSubmit(gQueue, 1, &si, inFlightFences[currFrame]);
@@ -258,7 +251,7 @@ void appvk::drawFrame() {
 	VkPresentInfoKHR pInfo{};
 	pInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	pInfo.waitSemaphoreCount = 1;
-	pInfo.pWaitSemaphores = renderEndSems;
+	pInfo.pWaitSemaphores = &renderDoneSems[currFrame];
 	pInfo.swapchainCount = 1;
 	pInfo.pSwapchains = &swap;
 	pInfo.pImageIndices = &nextFrame;
@@ -296,22 +289,27 @@ appvk::~appvk() {
 
     cleanupSwapChain();
 
-    vkDestroyDescriptorSetLayout(dev, dSetLayout, nullptr);
+	for (thing& t : things) {
+		vkDestroyDescriptorSetLayout(dev, t.layout, nullptr);
 
-    vkDestroyCommandPool(dev, cp, nullptr);
+		for (texture tx : t.maps) {
+			vkDestroySampler(dev, tx.samp, nullptr);
+			vkDestroyImageView(dev, tx.view, nullptr);
+			vkDestroyImage(dev, tx.im, nullptr);
+			vkFreeMemory(dev, tx.mem, nullptr);
+			tx.mem = VK_NULL_HANDLE; // prevent other frees from failing if all textures allocated together
+		}
 
-	for (texture t : maps) {
-		vkDestroySampler(dev, t.samp, nullptr);
-		vkDestroyImageView(dev, t.view, nullptr);
-		vkDestroyImage(dev, t.im, nullptr);
-		vkFreeMemory(dev, t.mem, nullptr);
+		vkDestroyBuffer(dev, t.index.buf, nullptr);
+		vkFreeMemory(dev, t.index.mem, nullptr);
+		t.index.mem = VK_NULL_HANDLE;
+
+		vkDestroyBuffer(dev, t.vert.buf, nullptr);
+		vkFreeMemory(dev, t.vert.mem, nullptr);
+		t.vert.mem = VK_NULL_HANDLE;
 	}
 
-	vkDestroyBuffer(dev, centerObj.index.buf, nullptr);
-    vkFreeMemory(dev, centerObj.index.mem, nullptr);
-
-    vkDestroyBuffer(dev, centerObj.vert.buf, nullptr);
-	vkFreeMemory(dev, centerObj.vert.mem, nullptr);
+    vkDestroyCommandPool(dev, cp, nullptr);
 
 	ImGui_ImplVulkan_Shutdown();
 

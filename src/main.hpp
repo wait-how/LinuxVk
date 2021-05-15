@@ -96,6 +96,12 @@ private:
 		VkDeviceMemory mem = VK_NULL_HANDLE;
 	};
 
+	struct bufslab {
+		std::vector<VkBuffer> bufs;
+		VkDeviceMemory mem = VK_NULL_HANDLE;
+		VkDeviceSize elemSize = 0; // _actual_ size of a buffer in mem (due to GPU memory alignment)
+	};
+
 	struct image {
 		VkImage im = VK_NULL_HANDLE;
 		VkDeviceMemory mem = VK_NULL_HANDLE;
@@ -107,33 +113,38 @@ private:
 		VkSampler samp = VK_NULL_HANDLE;
 	};
 
-	struct object {
+	struct thing {
 		buffer vert;
 		buffer index;
-		unsigned int indexCount;
+		unsigned int indices = 0;
+
+		std::array<texture, 3> maps;
+		texture& diff = maps[0];
+		texture& norm = maps[1];
+		texture& disp = maps[2];
+
+		VkDescriptorSetLayout layout = VK_NULL_HANDLE;
+		std::vector<VkDescriptorSet> dsets;
+		bufslab ubos;
+
+		VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
+		VkPipeline pipe = VK_NULL_HANDLE;
 	};
 
-	std::vector<VkBuffer> mvpBuffers;
-	std::vector<VkDeviceMemory> mvpMemories;
-	void createUniformBuffers();
-
-    VkDescriptorSetLayout dSetLayout = VK_NULL_HANDLE;
+	void createUniformBuffers();    
     void createDescriptorSetLayout();
 
     VkDescriptorPool dPool = VK_NULL_HANDLE;
 	VkDescriptorPool uiPool = VK_NULL_HANDLE;
     void createDescriptorPool();
 
-    std::vector<VkDescriptorSet> descSet;
-    void allocDescriptorSets(VkDescriptorPool pool, std::vector<VkDescriptorSet>& dSet, VkDescriptorSetLayout layout);
-	void allocDescriptorSetUniform(std::vector<VkDescriptorSet>& dSet);
-	void allocDescriptorSetTexture(std::vector<VkDescriptorSet>& dSet, texture tex, size_t index);
+    void allocDescriptorSets(VkDescriptorPool pool, thing& t);
+	void allocDescriptorSetUniform(thing& t);
+	void allocDescriptorSetTexture(thing& t, texture tex, size_t index);
 
 	std::vector<char> readFile(std::string_view path);
     VkShaderModule createShaderModule(const std::vector<char>& spv);
 	
-	VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
-	VkPipeline pipe = VK_NULL_HANDLE;
 	void createGraphicsPipeline();
 
 	bool printed = false;
@@ -147,27 +158,26 @@ private:
 
 	uint32_t findMemoryType(uint32_t legalMemoryTypes, VkMemoryPropertyFlags properties);
     buffer createBuffer(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props);
+	bufslab createBuffers(VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags props, unsigned int count);
 
     VkCommandBuffer beginSingleCommand();
     void endSingleCommand(VkCommandBuffer buf);
 
-	image createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props);
+	image createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels,
+		VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props);
     void transitionImageLayout(image image, VkImageLayout oldl, VkImageLayout newl);
     
     void copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_t height);
     void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
 
-	object centerObj;
+	std::array<thing, 2> things;
+	thing& t = things[0];
+	thing& flr = things[1];
 
     buffer createVertexBuffer(std::vector<vformat::vertex>& v);
 	buffer createVertexBuffer(const std::vector<uint8_t>& verts);
 
     buffer createIndexBuffer(const std::vector<uint32_t>& indices);
-	
-	std::array<texture, 3> maps;
-	texture& diff = maps[0];
-	texture& norm = maps[1];
-	texture& disp = maps[2];
 
 	texture createTextureImage(int width, int height, const uint8_t* data, bool makeMips = true);
 
@@ -183,14 +193,12 @@ private:
 	
 	std::vector<VkCommandBuffer> commandBuffers;
 	
-	uint32_t grassVertices;
-	uint32_t grassIndices;
 	void allocRenderCmdBuffers();
 
 	// swapchain image acquisition requires a binary semaphore since it might be hard for implementations to do timeline semaphores
 	std::vector<VkSemaphore> imageAvailSems; // use seperate semaphores per frame so we can send >1 frame at once
 	std::vector<VkSemaphore> renderDoneSems;
-	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the 1 one
+	std::vector<VkFence> inFlightFences; // use fences so we actually wait until a frame completes before moving on to the next one
 	std::vector<VkFence> imagesInFlight; // track frames in flight because acquireNextImageKHR may not return swapchain indices in order
     void createSyncs();
 

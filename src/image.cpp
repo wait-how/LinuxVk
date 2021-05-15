@@ -122,7 +122,8 @@ void appvk::copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_
     endSingleCommand(cbuf);
 }
 
-appvk::image appvk::createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels, VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props) {
+appvk::image appvk::createImage(unsigned int width, unsigned int height, VkFormat format, unsigned int mipLevels,
+    VkSampleCountFlagBits samples, VkImageTiling tiling, VkImageUsageFlags usage, VkMemoryPropertyFlags props) {
     VkImageCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     createInfo.imageType = VK_IMAGE_TYPE_2D;

@@ -62,5 +62,5 @@ void appvk::allocRenderCmdBuffers() {
         throw std::runtime_error("cannot create command buffers!");
     }
 
-    // could record all command buffers here, but UI needs to be re-recorded every frame and I don't really want multiple render passes
+    // we could record command buffers here, but since the ui needs to be re-recorded every frame there isn't much point...?
 }

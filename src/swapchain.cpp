@@ -136,9 +136,16 @@ void appvk::cleanupSwapChain() {
     vkDestroyImage(dev, ms.im, nullptr);
     vkFreeMemory(dev, ms.mem, nullptr);
 
-    for (size_t i = 0; i < swapImages.size(); i++) {
-        vkDestroyBuffer(dev, mvpBuffers[i], nullptr);
-        vkFreeMemory(dev, mvpMemories[i], nullptr);
+    for (thing& t : things) {
+        for (VkBuffer buf : t.ubos.bufs) {
+            vkDestroyBuffer(dev, buf, nullptr);
+        }
+
+        vkFreeMemory(dev, t.ubos.mem, nullptr);
+        t.ubos.mem = VK_NULL_HANDLE;
+
+        vkDestroyPipeline(dev, t.pipe, nullptr);
+        vkDestroyPipelineLayout(dev, t.pipeLayout, nullptr);
     }
 
     vkDestroyDescriptorPool(dev, dPool, nullptr);
@@ -148,8 +155,6 @@ void appvk::cleanupSwapChain() {
         vkDestroyFramebuffer(dev, framebuffer, nullptr);
     }
 
-    vkDestroyPipeline(dev, pipe, nullptr);
-    vkDestroyPipelineLayout(dev, pipeLayout, nullptr);
     vkDestroyRenderPass(dev, renderPass, nullptr);
     
     for (const auto& view : swapImageViews) {

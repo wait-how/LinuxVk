@@ -203,39 +203,53 @@ void appvk::createGraphicsPipeline() {
     VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // for descriptor sets
     pipeLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeLayoutCreateInfo.setLayoutCount = 1;
-    pipeLayoutCreateInfo.pSetLayouts = &dSetLayout;
+    pipeLayoutCreateInfo.pSetLayouts = &t.layout;
 
-    if (vkCreatePipelineLayout(dev, &pipeLayoutCreateInfo, nullptr, &pipeLayout) != VK_SUCCESS) {
-        throw std::runtime_error("cannot create pipeline layout!");
+    if (vkCreatePipelineLayout(dev, &pipeLayoutCreateInfo, nullptr, &t.pipeLayout) != VK_SUCCESS) {
+        throw std::runtime_error("cannot create obj pipeline layout!");
     }
 
-    VkGraphicsPipelineCreateInfo pipeCreateInfo{};
-    pipeCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeLayoutCreateInfo.pSetLayouts = &flr.layout;
+    
+    if (vkCreatePipelineLayout(dev, &pipeLayoutCreateInfo, nullptr, &flr.pipeLayout) != VK_SUCCESS) {
+        throw std::runtime_error("cannot create flr pipeline layout!");
+    }
+
+    std::array<VkGraphicsPipelineCreateInfo, 2> pipeCreateInfos = {};
+    std::array<VkPipeline, 2> pipes;
+
+    pipeCreateInfos[0].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     
     if (shader_debug) {
-        pipeCreateInfo.flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+        pipeCreateInfos[0].flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
     
-    pipeCreateInfo.flags |= VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
-    pipeCreateInfo.stageCount = shaders.size();
-    pipeCreateInfo.pStages = shaders.data();
-    pipeCreateInfo.pVertexInputState = &vinCreateInfo;
-    pipeCreateInfo.pInputAssemblyState = &inAsmCreateInfo;
-    pipeCreateInfo.pViewportState = &viewCreateInfo;
-    pipeCreateInfo.pRasterizationState = &rasterCreateInfo;
-    pipeCreateInfo.pMultisampleState = &msCreateInfo;
-    pipeCreateInfo.pDepthStencilState = &dCreateInfo;
-    pipeCreateInfo.pColorBlendState = &colorCreateInfo;
-    pipeCreateInfo.layout = pipeLayout; // handle, not a struct.
-    pipeCreateInfo.renderPass = renderPass;
-    pipeCreateInfo.subpass = 0;
+    pipeCreateInfos[0].flags |= VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
+    pipeCreateInfos[0].stageCount = shaders.size();
+    pipeCreateInfos[0].pStages = shaders.data();
+    pipeCreateInfos[0].pVertexInputState = &vinCreateInfo;
+    pipeCreateInfos[0].pInputAssemblyState = &inAsmCreateInfo;
+    pipeCreateInfos[0].pViewportState = &viewCreateInfo;
+    pipeCreateInfos[0].pRasterizationState = &rasterCreateInfo;
+    pipeCreateInfos[0].pMultisampleState = &msCreateInfo;
+    pipeCreateInfos[0].pDepthStencilState = &dCreateInfo;
+    pipeCreateInfos[0].pColorBlendState = &colorCreateInfo;
+    pipeCreateInfos[0].layout = t.pipeLayout; // handle, not a struct.
+    pipeCreateInfos[0].renderPass = renderPass;
+    pipeCreateInfos[0].subpass = 0;
+
+    pipeCreateInfos[1] = pipeCreateInfos[0];
     
-    if (vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, 1, &pipeCreateInfo, nullptr, &pipe) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(dev, VK_NULL_HANDLE, things.size(), pipeCreateInfos.data(), nullptr, pipes.data()) != VK_SUCCESS) {
         throw std::runtime_error("cannot create graphics pipeline!");
     }
 
+    for (size_t i = 0; i < things.size(); i++) {
+        things[i].pipe = pipes[i];
+    }
+
     if (shader_debug && !printed) {
-        printShaderStats(pipe);
+        printShaderStats(t.pipe);
         printed = true; // prevent stats from being printed again if we recreate the pipeline
     }
     

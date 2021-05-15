@@ -6,6 +6,13 @@
 
 #include "options.hpp"
 
+// make imgui check the results of vulkan operations
+void imguiCheck(VkResult r) {
+	if (r != VK_SUCCESS) {
+		throw std::runtime_error("vulkan error within imgui!");
+	}
+}
+
 // seperate from generic ui init so we only rebuild the vulkan part on a window resize
 void appvk::initVulkanUI() {	
 
@@ -49,7 +56,7 @@ void appvk::initVulkanUI() {
     initInfo.MinImageCount = 2;
     initInfo.ImageCount = options::framesInFlight;
 	initInfo.MSAASamples = getSamples(options::msaaSamples);
-    initInfo.CheckVkResultFn = nullptr;
+    initInfo.CheckVkResultFn = imguiCheck;
     ImGui_ImplVulkan_Init(&initInfo, renderPass);
 
     VkCommandBuffer font = beginSingleCommand();
