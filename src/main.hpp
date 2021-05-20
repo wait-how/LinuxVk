@@ -49,6 +49,9 @@ private:
 		std::optional<uint32_t> graphics;
 		std::optional<uint32_t> compute;
 		std::optional<uint32_t> transfer;
+
+		std::optional<uint32_t> onlyCompute; // probably some compute engine
+		std::optional<uint32_t> onlyTransfer; // probably the DMA engine
 	};
 
     struct swapChainSupportDetails {
@@ -65,31 +68,10 @@ private:
 	
 	VkDevice dev = VK_NULL_HANDLE;
 	VkQueue gQueue = VK_NULL_HANDLE;
+	VkQueue cQueue = VK_NULL_HANDLE;
 	uint32_t gQueueFamily;
+	uint32_t cQueueFamily;
     void createLogicalDevice();
-	
-	VkSwapchainKHR swap = VK_NULL_HANDLE;
-	std::vector<VkImage> swapImages;
-	VkFormat swapFormat;
-	VkExtent2D swapExtent;
-    std::vector<VkImageView> swapImageViews;
-    void createSurface();
-	void createSwapChain();
-    void createSwapViews();
-
-    VkFormat findImageFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags features);
-    VkImageView createImageView(VkImage im, VkFormat format, unsigned int mipLevels, VkImageAspectFlags aspectMask);
-	
-	VkRenderPass renderPass = VK_NULL_HANDLE;
-
-    void createRenderPass();
-
-	struct ubo {
-		alignas(16) glm::mat4 model;
-		alignas(16) glm::mat4 view;
-		alignas(16) glm::mat4 proj;
-		alignas(16) glm::vec3 eye;
-	};
 
 	struct buffer {
 		VkBuffer buf = VK_NULL_HANDLE;
@@ -129,6 +111,42 @@ private:
 
 		VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
 		VkPipeline pipe = VK_NULL_HANDLE;
+	};
+
+	buffer ibuf;
+	buffer obuf;
+	VkDescriptorSetLayout cLayout = VK_NULL_HANDLE;
+	VkPipelineLayout cPipeLayout = VK_NULL_HANDLE;
+	VkDescriptorPool cPool = VK_NULL_HANDLE;
+	VkDescriptorSet cDescSet = VK_NULL_HANDLE;
+	VkPipeline cPipeline = VK_NULL_HANDLE;
+	VkCommandPool ccp = VK_NULL_HANDLE;
+	void createComputeBuffers();
+	void createComputeDescriptors();
+	void createComputePipeline();
+	VkCommandBuffer createComputeCommandBuffer();
+	void runCompute(VkCommandBuffer buf);
+	
+	VkSwapchainKHR swap = VK_NULL_HANDLE;
+	std::vector<VkImage> swapImages;
+	VkFormat swapFormat;
+	VkExtent2D swapExtent;
+    std::vector<VkImageView> swapImageViews;
+    void createSurface();
+	void createSwapChain();
+    void createSwapViews();
+
+    VkFormat findImageFormat(const std::vector<VkFormat>& formats, VkImageTiling tiling, VkFormatFeatureFlags features);
+    VkImageView createImageView(VkImage im, VkFormat format, unsigned int mipLevels, VkImageAspectFlags aspectMask);
+	
+	VkRenderPass renderPass = VK_NULL_HANDLE;
+
+    void createRenderPass();
+
+	struct ubo {
+		alignas(16) glm::mat4 model;
+		alignas(16) glm::mat4 view;
+		alignas(16) glm::mat4 proj;
 	};
 
 	void createUniformBuffers();    

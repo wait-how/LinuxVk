@@ -114,6 +114,14 @@ appvk::queueIndices appvk::findQueueFamily(VkPhysicalDevice pd) {
         if (queues[i].queueFlags & VK_QUEUE_TRANSFER_BIT) {
             qi.transfer = i;
         }
+
+        if (qi.compute == i && qi.graphics != i && qi.transfer != i) {
+            qi.onlyCompute = i;
+        }
+
+        if (qi.transfer == i && qi.graphics != i && qi.compute != i) {
+            qi.onlyTransfer = i;
+        }
     }
     
     return qi;
@@ -123,16 +131,28 @@ void appvk::createLogicalDevice() {
     queueIndices qi = findQueueFamily(pdev); // check for the proper queue
     swapChainSupportDetails d = querySwapChainSupport(pdev); // verify swap chain information before creating a new logical device
 
-    if (!qi.graphics.has_value() || d.formats.size() == 0 || d.presentModes.size() == 0) {
+    if (!qi.graphics.has_value() || !qi.compute.has_value() || d.formats.size() == 0 || d.presentModes.size() == 0) {
         throw std::runtime_error("cannot find a suitable logical device!");
     }
 
-    VkDeviceQueueCreateInfo queueInfo{};
-    queueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueInfo.queueFamilyIndex = *(qi.graphics);
-    queueInfo.queueCount = 1;
+    uint32_t chosenComputeFamily;
+    if (qi.onlyCompute.has_value()) {
+        chosenComputeFamily = *(qi.onlyCompute);
+    } else {
+        chosenComputeFamily = *(qi.compute);
+    }
+
+    VkDeviceQueueCreateInfo queueInfos[2] = {};
+    queueInfos[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueInfos[0].queueFamilyIndex = *(qi.graphics);
+    queueInfos[0].queueCount = 1;
     float pri = 1.0f;
-    queueInfo.pQueuePriorities = &pri; // highest priority
+    queueInfos[0].pQueuePriorities = &pri; // highest priority
+
+    queueInfos[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queueInfos[1].queueFamilyIndex = chosenComputeFamily;
+    queueInfos[1].queueCount = 1;
+    queueInfos[1].pQueuePriorities = &pri; // highest priority
 
     VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR execProp{};
     execProp.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PIPELINE_EXECUTABLE_PROPERTIES_FEATURES_KHR;
@@ -148,8 +168,8 @@ void appvk::createLogicalDevice() {
     VkDeviceCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     createInfo.pNext = &feat2;
-    createInfo.pQueueCreateInfos = &queueInfo;
-    createInfo.queueCreateInfoCount = 1;
+    createInfo.pQueueCreateInfos = queueInfos;
+    createInfo.queueCreateInfoCount = 2;
     createInfo.pEnabledFeatures = nullptr;
     createInfo.enabledExtensionCount = requiredExtensions.size();
     createInfo.ppEnabledExtensionNames = requiredExtensions.data();
@@ -159,5 +179,8 @@ void appvk::createLogicalDevice() {
     }
 
     vkGetDeviceQueue(dev, *(qi.graphics), 0, &gQueue); // creating a device also creates queues for it
+    vkGetDeviceQueue(dev, chosenComputeFamily, 0, &cQueue);
+
     gQueueFamily = *(qi.graphics);
+    cQueueFamily = chosenComputeFamily;
 }

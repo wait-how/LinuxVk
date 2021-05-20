@@ -47,7 +47,7 @@ void appvk::createDescriptorPool() {
 
     VkDescriptorPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    createInfo.maxSets = swapImages.size() * poolSizes.size();
+    createInfo.maxSets = swapImages.size() * things.size();
     createInfo.poolSizeCount = poolSizes.size();
     createInfo.pPoolSizes = poolSizes.data();
 

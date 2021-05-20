@@ -1,12 +1,10 @@
 #include "main.hpp"
 
 void appvk::createCommandPool() {
-    queueIndices qi = findQueueFamily(pdev);
-    
     VkCommandPoolCreateInfo createInfo{};
     createInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     createInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT; // allow ui command buffers to be reset
-    createInfo.queueFamilyIndex = qi.graphics.value();
+    createInfo.queueFamilyIndex = gQueueFamily;
 
     if (vkCreateCommandPool(dev, &createInfo, nullptr, &cp) != VK_SUCCESS) {
         throw std::runtime_error("cannot create command pool!");

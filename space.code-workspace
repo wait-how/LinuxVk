@@ -83,7 +83,8 @@
 				"binaryPath": "/home/kneil/code/LinuxVk/dbg",
 				"binaryArgs": []
 			}
-		]
+		],
+		"glsllint.glslangValidatorArgs": "--target-env vulkan1.2"
 	},
 
 }

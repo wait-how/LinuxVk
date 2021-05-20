@@ -13,14 +13,14 @@
 #include "imgui_impl_vulkan.h"
 
 void appvk::recreateSwapChain() {
+	vkDeviceWaitIdle(dev);
+
 	int width, height;
 	glfwGetFramebufferSize(w, &width, &height);
 	while (width == 0 || height == 0) { // wait until window isn't hidden anymore
 		glfwGetFramebufferSize(w, &width, &height);
 		glfwWaitEvents(); // put this thread to sleep until events exist
 	}
-
-	vkDeviceWaitIdle(dev);
 
 	cleanupSwapChain();
 
@@ -95,6 +95,12 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	createSurface();
 	pickPhysicalDevice(any);
 	createLogicalDevice();
+
+	createComputeBuffers();
+	createComputeDescriptors();
+	createComputePipeline();
+	VkCommandBuffer buf = createComputeCommandBuffer();
+	runCompute(buf);
 
 	createSwapChain();
 	createSwapViews();
@@ -208,10 +214,12 @@ void appvk::drawFrame() {
 	vkCmdBeginRenderPass(cbuf, &rBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 	
 		VkDeviceSize offset[] = { 0 };
+
 		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, t.pipe);
 		vkCmdBindVertexBuffers(cbuf, 0, 1, &t.vert.buf, offset);
 		vkCmdBindIndexBuffer(cbuf, t.index.buf, 0, VK_INDEX_TYPE_UINT32);
 		vkCmdBindDescriptorSets(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, t.pipeLayout, 0, 1, &t.dsets[nextFrame], 0, nullptr);
+		vkCmdPushConstants(cbuf, t.pipeLayout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(glm::vec3), &c.pos);
 		vkCmdDrawIndexed(cbuf, t.indices, 1, 0, 0, 0);
 
 		vkCmdBindPipeline(cbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, flr.pipe);
@@ -312,6 +320,20 @@ appvk::~appvk() {
     vkDestroyCommandPool(dev, cp, nullptr);
 
 	ImGui_ImplVulkan_Shutdown();
+
+	vkDestroyCommandPool(dev, ccp, nullptr);
+
+	vkDestroyPipeline(dev, cPipeline, nullptr);
+	vkDestroyPipelineLayout(dev, cPipeLayout, nullptr);
+
+	vkDestroyBuffer(dev, ibuf.buf, nullptr);
+	vkFreeMemory(dev, ibuf.mem, nullptr);
+
+	vkDestroyBuffer(dev, obuf.buf, nullptr);
+	vkFreeMemory(dev, obuf.mem, nullptr);
+
+	vkDestroyDescriptorSetLayout(dev, cLayout, nullptr);
+	vkDestroyDescriptorPool(dev, cPool, nullptr);
 
     vkDestroyDevice(dev, nullptr);
     vkDestroySurfaceKHR(instance, surf, nullptr);

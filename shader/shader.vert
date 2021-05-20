@@ -14,8 +14,11 @@ layout (set = 0, binding = 0) uniform uniformBuffer {
 	mat4 model;
 	mat4 view;
 	mat4 proj;
-	vec3 c;
 } ubo;
+
+layout (push_constant) uniform push_data {
+	vec3 c;
+} pd;
 
 layout (location = 0) out vec3 p;
 layout (location = 1) out vec3 n;
@@ -32,7 +35,7 @@ void main() {
 	p = p4.xyz;
 	n = mat3(ubo.model) * normal;
 	uv = texcoord;
-	eye = ubo.c;
+	eye = pd.c;
 
 	// create a change of basis matrix to map normal map vertices to world space normals
 	vec3 t = normalize(vec3(ubo.model * vec4(tangent, 0.0)));

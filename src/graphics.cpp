@@ -200,10 +200,19 @@ void appvk::createGraphicsPipeline() {
     dynCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
     dynCreateInfo.dynamicStateCount = 0;
 
+    std::array<VkPushConstantRange, 1> pcr{};
+
+    // camera position
+    pcr[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    pcr[0].offset = 0;
+    pcr[0].size = sizeof(glm::vec3);
+
     VkPipelineLayoutCreateInfo pipeLayoutCreateInfo{}; // for descriptor sets
     pipeLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeLayoutCreateInfo.setLayoutCount = 1;
     pipeLayoutCreateInfo.pSetLayouts = &t.layout;
+    pipeLayoutCreateInfo.pushConstantRangeCount = pcr.size();
+    pipeLayoutCreateInfo.pPushConstantRanges = pcr.data();
 
     if (vkCreatePipelineLayout(dev, &pipeLayoutCreateInfo, nullptr, &t.pipeLayout) != VK_SUCCESS) {
         throw std::runtime_error("cannot create obj pipeline layout!");
@@ -224,7 +233,7 @@ void appvk::createGraphicsPipeline() {
         pipeCreateInfos[0].flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
     
-    pipeCreateInfos[0].flags |= VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT; // likely want to allow for pipelines to copy this one
+    // (no major speedup expected from pipeline derivatives)
     pipeCreateInfos[0].stageCount = shaders.size();
     pipeCreateInfos[0].pStages = shaders.data();
     pipeCreateInfos[0].pVertexInputState = &vinCreateInfo;

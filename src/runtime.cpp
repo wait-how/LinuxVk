@@ -41,8 +41,6 @@ void appvk::updateFrame(uint32_t imageIndex) {
     u.view = glm::lookAt(c.pos, c.pos + c.front, glm::vec3(0.0f, 1.0f, 0.0f));
     u.proj = glm::perspective(glm::radians(25.0f), swapExtent.width / float(swapExtent.height), 0.1f, 100.0f);
 
-    u.eye = c.pos;
-
     void* data;
     vkMapMemory(dev, t.ubos.mem, imageIndex * t.ubos.elemSize, sizeof(ubo), 0, &data);
     memcpy(data, &u, sizeof(ubo));

@@ -12,7 +12,7 @@ SHDRS := $(wildcard *.*)
 # create .spv files in hidden directory
 SPVS := $(addprefix $(SPVDIR)/,$(addsuffix .spv,$(SHDRS)))
 
-BUILD = $(CC) --target-env vulkan1.2 -e main -e main_min -t $^ -o $@
+BUILD = $(CC) --target-env vulkan1.2 -e main -t $^ -o $@
 
 # make .spv directory at startup
 $(shell mkdir -p $(SPVDIR) > /dev/null)

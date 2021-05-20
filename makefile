@@ -67,7 +67,7 @@ opt: LDFLAGS += -flto=thin
 
 # smallest executable on current machine
 small: CFLAGS += -Oz -march=native -ffast-math -flto=thin -DNDEBUG
-small: LDFLAGS += -flto=thin
+small: LDFLAGS += -flto=thin -s
 
 # clean out intermediate files
 clean:

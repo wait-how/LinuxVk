@@ -1,0 +1,17 @@
+#version 460 core
+
+layout (local_size_x = 128, local_size_y = 1, local_size_z = 1) in;
+
+layout (std430, binding = 0) readonly buffer ibuf {
+    vec4 idata[];
+};
+
+layout (std430, binding = 1) writeonly buffer obuf {
+    vec4 odata[];
+};
+
+void main() {
+    vec4 iv = idata[gl_GlobalInvocationID.x];
+
+    odata[gl_GlobalInvocationID.x] = vec4(iv.x + iv.y + iv.z + iv.w);
+}
