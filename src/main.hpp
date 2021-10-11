@@ -27,8 +27,6 @@ public:
 	void run();
 
 private:
-
-	constexpr static bool shader_debug = false;
 	
 	VkPhysicalDevice pdev = VK_NULL_HANDLE;
     VkSampleCountFlagBits msaaSamples;
@@ -96,6 +94,8 @@ private:
 	};
 
 	struct thing {
+		std::string name;
+
 		buffer vert;
 		buffer index;
 		unsigned int indices = 0;
@@ -112,6 +112,10 @@ private:
 		VkPipelineLayout pipeLayout = VK_NULL_HANDLE;
 		VkPipeline pipe = VK_NULL_HANDLE;
 	};
+
+	std::array<thing, 2> things;
+	thing& t = things[0];
+	thing& flr = things[1];
 
 	buffer ibuf;
 	buffer obuf;
@@ -166,7 +170,7 @@ private:
 	void createGraphicsPipeline();
 
 	bool printed = false;
-    void printShaderStats(const VkPipeline& pipe);
+    void printShaderStats(const thing& t);
 
 	std::vector<VkFramebuffer> swapFramebuffers; // ties render attachments to image views in the swapchain
     void createFramebuffers();
@@ -187,10 +191,6 @@ private:
     
     void copyBufferToImage(VkBuffer buf, VkImage img, uint32_t width, uint32_t height);
     void copyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize size);
-
-	std::array<thing, 2> things;
-	thing& t = things[0];
-	thing& flr = things[1];
 
     buffer createVertexBuffer(std::vector<vformat::vertex>& v);
 	buffer createVertexBuffer(const std::vector<uint8_t>& verts);

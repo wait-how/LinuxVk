@@ -38,8 +38,8 @@ void main() {
 	eye = pd.c;
 
 	// create a change of basis matrix to map normal map vertices to world space normals
-	vec3 t = normalize(vec3(ubo.model * vec4(tangent, 0.0)));
-	vec3 nfull = normalize(vec3(ubo.model * vec4(normal, 0.0)));
+	vec3 t = normalize(mat3(ubo.model) * tangent);
+	vec3 nfull = normalize(mat3(ubo.model) * normal);
 	vec3 b = cross(nfull, t);
 	tbn = mat3(t, b, nfull);
 }

@@ -17,19 +17,19 @@ struct point {
 	vec3 color;
 };
 
-vec2 disp_map(vec2 uv) {
+vec2 disp_map(in vec2 uv) {
 	const float scale = 0.1;
-	vec3 tldir = normalize(transpose(tbn) * (eye - p)); // transpose == inverse for orthogonal matrix
+	vec3 tldir = normalize(transpose(tbn) * (eye - p)) * scale; // transpose == inverse for orthogonal matrix
 
+	/*
 	// number of iterations to try and find the surface of the displacement
-	// const uint minSamples = 2;
+	// (this is more efficient but looks worse from extreme angles)
+	const uint minSamples = 2;
 	const uint maxSamples = 16;
-	// (this is more efficient but doesn't look good at all)
-	// float samples = mix(maxSamples, minSamples, max(dot(tldir, vec3(0.0, 0.0, 1.0)), 0.0));
+	float samples = mix(maxSamples, minSamples, max(dot(tldir, vec3(0.0, 0.0, 1.0)), 0.0));
+	*/
 
-	float samples = maxSamples;
-
-	tldir *= scale;
+	const uint samples = 16;
 
 	const float pstep = 1.0 / samples;
 	uint idx = 0;
@@ -77,7 +77,7 @@ vec3 blinn_phong(in point l, in vec3 c, in vec3 nn) {
 	vec3 lhalf = normalize(ldir + eyedir);
 
 	float spec = clamp(dot(lhalf, nn), 0.0, 1.0);
-	spec = pow(spec, 150);
+	spec = pow(spec, 128);
 
 	vec3 specc = l.color * spec;
 
@@ -95,6 +95,7 @@ void main() {
 
 	const point l = point(vec3(0.0, 2.0, 0.0), vec3(1.0));
 
+	// displacement map
 	vec2 duv = disp_map(uv);
 
 	// normal map
@@ -107,5 +108,5 @@ void main() {
 
 	c = blinn_phong(l, c, nt);
 
-	fragcolor = vec4(min(c, vec3(1.0)), 1.0);
+	fragcolor = vec4(clamp(c, vec3(0.0), vec3(1.0)), 1.0);
 }

@@ -1,4 +1,5 @@
 #include "main.hpp"
+#include "options.hpp"
 
 // stores framebuffer config
 void appvk::createRenderPass() {
@@ -229,7 +230,7 @@ void appvk::createGraphicsPipeline() {
 
     pipeCreateInfos[0].sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     
-    if (shader_debug) {
+    if (options::shaderDebug) {
         pipeCreateInfos[0].flags = VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
     }
     
@@ -257,8 +258,10 @@ void appvk::createGraphicsPipeline() {
         things[i].pipe = pipes[i];
     }
 
-    if (shader_debug && !printed) {
-        printShaderStats(t.pipe);
+    if (options::shaderDebug && !printed) {
+        for (thing& t : things) {
+            printShaderStats(t);
+        }
         printed = true; // prevent stats from being printed again if we recreate the pipeline
     }
     

@@ -1,7 +1,8 @@
 dbg
 opt
 small
-check
+asan
+tsan
 .obj
 .dep
 .spv

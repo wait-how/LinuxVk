@@ -1,20 +1,21 @@
 #pragma once
 
 namespace options {
-    constexpr static unsigned int screenWidth = 3840;
-	constexpr static unsigned int screenHeight = 2160;
+    constexpr unsigned int screenWidth = 3840;
+	constexpr unsigned int screenHeight = 2160;
 
     // graphics options
     constexpr unsigned int msaaSamples = 2;
-
-    constexpr unsigned int framesInFlight = 2;
+    constexpr bool rayTracing = true;
 
     // dev options
-    constexpr static bool verbose = false;
+    constexpr unsigned int framesInFlight = 2;
+    constexpr bool verbose = false;
+    constexpr bool shaderDebug = false;
 
 #ifndef NDEBUG
-	constexpr static bool debug = true;
+	constexpr bool debug = true;
 #else
-	constexpr static bool debug = false;
+	constexpr bool debug = false;
 #endif
 }

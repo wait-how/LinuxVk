@@ -35,10 +35,10 @@ VkShaderModule appvk::createShaderModule(const std::vector<char>& spv) {
     return mod;
 }
 
-void appvk::printShaderStats(const VkPipeline& printPipe) {
+void appvk::printShaderStats(const thing& t) {
     VkPipelineInfoKHR pipeInfo{};
     pipeInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_INFO_KHR;
-    pipeInfo.pipeline = printPipe;
+    pipeInfo.pipeline = t.pipe;
 
     unsigned int numShaders;
     if (GetPipelineExecutablePropertiesKHR(dev, &pipeInfo, &numShaders, nullptr) != VK_SUCCESS) {
@@ -54,7 +54,7 @@ void appvk::printShaderStats(const VkPipeline& printPipe) {
     
     VkPipelineExecutableInfoKHR shaderInfo{};
     shaderInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_EXECUTABLE_INFO_KHR;
-    shaderInfo.pipeline = printPipe;
+    shaderInfo.pipeline = t.pipe;
     
     unsigned int numStats;
     GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, nullptr);
@@ -66,7 +66,7 @@ void appvk::printShaderStats(const VkPipeline& printPipe) {
     for (size_t i = 0; i < numShaders; i++) {
         GetPipelineExecutableStatisticsKHR(dev, &shaderInfo, &numStats, shaderStats.data());
 
-        cout << shaderProps[i].name << " statistics:\n";
+        cout << t.name << " " << shaderProps[i].name << " statistics:\n";
         
         for (auto stat : shaderStats) {
             cout << "  ~ " << stat.name << " = ";

@@ -105,6 +105,10 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	createSwapChain();
 	createSwapViews();
 
+	// for debugging
+	t.name = "object";
+	flr.name = "floor";
+
 	createRenderPass();
 	createDescriptorSetLayout();
 	createGraphicsPipeline();
@@ -123,7 +127,6 @@ appvk::appvk() : basevk(false), c(0.0f, 0.0f, -3.0f) {
 	}
 
 	obj.join();
-
 	t.vert = createVertexBuffer(obj.meshList[0].verts);
 	t.index = createIndexBuffer(obj.meshList[0].indices);
 	cout << "loaded model " << objstr << "\n";
